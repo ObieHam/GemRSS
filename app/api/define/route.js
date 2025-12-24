@@ -9,6 +9,8 @@ export async function GET(request) {
 
     if (data && data[0] && typeof data[0] === 'object') {
       return Response.json({
+        // Extracting base form (lemmatization)
+        baseWord: data[0].hwi?.hw?.replace(/\*/g, "").toLowerCase() || word.toLowerCase(),
         definition: data[0].shortdef?.[0] || "Definition not found",
         pronunciation: data[0].hwi?.prs?.[0]?.mw || "N/A"
       });
