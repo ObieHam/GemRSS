@@ -1,6 +1,12 @@
 "use client";
 import React, { useState, useEffect, useRef } from 'react';
 import { Upload, Search, BookOpen, Loader2, Trash2, Volume2, Plus, Menu, X, Settings, ChevronLeft, ChevronRight, FileText, List } from 'lucide-react';
+import * as pdfjsLib from 'pdfjs-dist';
+
+// Set up PDF.js worker
+if (typeof window !== 'undefined') {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs';
+}
 
 // Mock database (replace with your Dexie implementation)
 const mockDB = {
@@ -379,24 +385,52 @@ function BrowseView({ words, loadWords }) {
 }
 
 function ReaderView({ autoSave, loadWords, words }) {
-  const [pdfText, setPdfText] = useState("");
+  const [pdfPages, setPdfPages] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
+  const [totalPages, setTotalPages] = useState(0);
   const [highlightedWords, setHighlightedWords] = useState([]);
   const [selectedWord, setSelectedWord] = useState(null);
   const [definitionPanel, setDefinitionPanel] = useState(null);
+  const [loading, setLoading] = useState(false);
   const fileInputRef = useRef(null);
 
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
-    const text = await file.text();
-    const pages = text.split('\n\n\n'); // Simple page splitting
-    setPdfText(text);
-    setTotalPages(pages.length || 1);
-    setCurrentPage(1);
-    analyzePageWords(pages[0] || text);
+    setLoading(true);
+    try {
+      if (file.type === 'application/pdf') {
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        const pages = [];
+        
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const textContent = await page.getTextContent();
+          const pageText = textContent.items.map(item => item.str).join(' ');
+          pages.push(pageText);
+        }
+        
+        setPdfPages(pages);
+        setTotalPages(pages.length);
+        setCurrentPage(1);
+        analyzePageWords(pages[0]);
+      } else {
+        // Handle text files
+        const text = await file.text();
+        const pages = text.split('\n\n\n');
+        setPdfPages(pages);
+        setTotalPages(pages.length);
+        setCurrentPage(1);
+        analyzePageWords(pages[0]);
+      }
+    } catch (error) {
+      console.error('Error processing file:', error);
+      alert('Error processing file. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const analyzePageWords = async (pageText) => {
@@ -415,10 +449,28 @@ function ReaderView({ autoSave, loadWords, words }) {
     setHighlightedWords(newWords);
   };
 
+  useEffect(() => {
+    if (pdfPages.length > 0 && currentPage > 0) {
+      analyzePageWords(pdfPages[currentPage - 1]);
+    }
+  }, [currentPage, pdfPages, words]);
+
   const handleWordClick = async (word) => {
     setSelectedWord(word);
-    const info = await fetchDefinition(word);
-    setDefinitionPanel(info);
+    setDefinitionPanel({ loading: true });
+    try {
+      const info = await fetchDefinition(word);
+      setDefinitionPanel(info);
+      
+      if (autoSave) {
+        await mockDB.vocabulary.add(info);
+        await loadWords();
+        setHighlightedWords(prev => prev.filter(w => w !== info.baseWord));
+      }
+    } catch (error) {
+      console.error('Error fetching definition:', error);
+      setDefinitionPanel({ error: 'Failed to load definition' });
+    }
   };
 
   const addToLibrary = async () => {
@@ -433,24 +485,32 @@ function ReaderView({ autoSave, loadWords, words }) {
   };
 
   const renderText = () => {
-    if (!pdfText) return null;
+    if (pdfPages.length === 0) return null;
     
-    let rendered = pdfText;
+    const currentText = pdfPages[currentPage - 1] || '';
+    let rendered = currentText;
+    
     highlightedWords.forEach(word => {
       const regex = new RegExp(`\\b(${word})\\b`, 'gi');
-      rendered = rendered.replace(regex, `<span class="bg-yellow-500/30 border-b-2 border-yellow-500 cursor-pointer hover:bg-yellow-500/50 transition-colors" data-word="$1">$1</span>`);
+      rendered = rendered.replace(regex, `<mark class="bg-yellow-400/40 border-b-2 border-yellow-500 cursor-pointer hover:bg-yellow-400/60 transition-colors px-1" data-word="$1">$1</mark>`);
     });
 
-    return <div className="prose prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: rendered }} onClick={(e) => {
-      const word = e.target.getAttribute('data-word');
-      if (word) handleWordClick(word.toLowerCase());
-    }} />;
+    return (
+      <div 
+        className="text-slate-200 leading-relaxed whitespace-pre-wrap" 
+        dangerouslySetInnerHTML={{ __html: rendered }}
+        onClick={(e) => {
+          const word = e.target.getAttribute('data-word');
+          if (word) handleWordClick(word.toLowerCase());
+        }}
+      />
+    );
   };
 
   return (
     <div className="flex h-screen">
       <div className="flex-grow p-12 overflow-y-auto">
-        {!pdfText ? (
+        {pdfPages.length === 0 ? (
           <div className="max-w-4xl mx-auto">
             <h2 className="text-5xl font-black mb-8 text-white">PDF Reader</h2>
             <div className="bg-slate-900 border-2 border-slate-700 rounded-3xl p-12 text-center">
@@ -463,10 +523,11 @@ function ReaderView({ autoSave, loadWords, words }) {
               />
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="inline-flex items-center gap-4 px-8 py-4 bg-indigo-500 hover:bg-indigo-600 rounded-2xl font-bold text-lg transition-colors"
+                disabled={loading}
+                className="inline-flex items-center gap-4 px-8 py-4 bg-indigo-500 hover:bg-indigo-600 disabled:bg-slate-700 rounded-2xl font-bold text-lg transition-colors"
               >
-                <Upload size={24} />
-                Upload PDF
+                {loading ? <Loader2 size={24} className="animate-spin" /> : <Upload size={24} />}
+                {loading ? 'Processing...' : 'Upload PDF'}
               </button>
             </div>
           </div>
@@ -492,7 +553,7 @@ function ReaderView({ autoSave, loadWords, words }) {
                 </button>
               </div>
             </div>
-            <div className="bg-slate-900 border-2 border-slate-700 rounded-3xl p-12 text-slate-200 leading-relaxed">
+            <div className="bg-slate-900 border-2 border-slate-700 rounded-3xl p-12 text-slate-200 leading-relaxed min-h-[600px]">
               {renderText()}
             </div>
           </div>
@@ -502,36 +563,56 @@ function ReaderView({ autoSave, loadWords, words }) {
       {definitionPanel && (
         <div className="w-96 bg-slate-950 border-l-2 border-slate-800 p-8 overflow-y-auto">
           <div className="flex items-center justify-between mb-6">
-            <h3 className="text-2xl font-black text-white capitalize">{definitionPanel.baseWord}</h3>
+            <h3 className="text-2xl font-black text-white capitalize">
+              {definitionPanel.loading ? 'Loading...' : definitionPanel.baseWord || selectedWord}
+            </h3>
             <button onClick={() => setDefinitionPanel(null)} className="p-2 hover:bg-slate-800 rounded-xl transition-colors">
               <X size={20} />
             </button>
           </div>
           
-          <div className="space-y-6">
-            <div>
-              <p className="text-slate-400 text-sm font-bold uppercase tracking-wider mb-2">Definition</p>
-              <p className="text-white leading-relaxed">{definitionPanel.definition}</p>
+          {definitionPanel.loading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="animate-spin text-indigo-400" size={32} />
             </div>
+          ) : definitionPanel.error ? (
+            <div className="bg-red-500/10 border-2 border-red-500/30 rounded-2xl p-6 text-center">
+              <p className="text-red-400">{definitionPanel.error}</p>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              <div>
+                <p className="text-slate-400 text-sm font-bold uppercase tracking-wider mb-2">Definition</p>
+                <p className="text-white leading-relaxed">{definitionPanel.definition}</p>
+              </div>
 
-            {definitionPanel.audioUrl && (
-              <button
-                onClick={() => new Audio(definitionPanel.audioUrl).play()}
-                className="w-full flex items-center justify-center gap-3 px-6 py-3 bg-slate-800 hover:bg-slate-700 rounded-xl transition-colors font-bold"
-              >
-                <Volume2 size={20} />
-                Play Pronunciation
-              </button>
-            )}
+              {definitionPanel.audioUrl && (
+                <button
+                  onClick={() => new Audio(definitionPanel.audioUrl).play()}
+                  className="w-full flex items-center justify-center gap-3 px-6 py-3 bg-slate-800 hover:bg-slate-700 rounded-xl transition-colors font-bold"
+                >
+                  <Volume2 size={20} />
+                  Play Pronunciation
+                </button>
+              )}
 
-            <button
-              onClick={addToLibrary}
-              className="w-full flex items-center justify-center gap-3 px-6 py-4 bg-indigo-500 hover:bg-indigo-600 rounded-xl transition-colors font-bold text-lg"
-            >
-              <Plus size={20} />
-              Add to Library
-            </button>
-          </div>
+              {!autoSave && (
+                <button
+                  onClick={addToLibrary}
+                  className="w-full flex items-center justify-center gap-3 px-6 py-4 bg-indigo-500 hover:bg-indigo-600 rounded-xl transition-colors font-bold text-lg"
+                >
+                  <Plus size={20} />
+                  Add to Library
+                </button>
+              )}
+
+              {autoSave && (
+                <div className="bg-green-500/10 border-2 border-green-500/30 rounded-2xl p-4 text-center">
+                  <p className="text-green-400 text-sm font-bold">✓ Auto-saved to library</p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>
