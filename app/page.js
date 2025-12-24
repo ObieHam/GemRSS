@@ -1,3 +1,4 @@
+"use client";
 import React, { useState, useEffect, useRef } from 'react';
 import { Upload, Search, BookOpen, Loader2, Trash2, Volume2, Plus, Menu, X, Settings, ChevronLeft, ChevronRight, FileText, List } from 'lucide-react';
 
