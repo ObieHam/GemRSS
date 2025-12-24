@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { db } from '../lib/db';
-import { Upload, Download, Search, BookOpen, Loader2, Trash2, Volume2, Plus, ArrowRight } from 'lucide-react';
+import { Upload, Download, Search, BookOpen, Loader2, Trash2, Volume2, Plus, LayoutDashboard } from 'lucide-react';
 import * as pdfjsLib from 'pdfjs-dist/build/pdf';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
@@ -80,87 +80,85 @@ export default function VocabApp() {
   };
 
   return (
-    <div className="min-h-screen bg-[#020617] text-slate-100 flex overflow-hidden">
-      {/* Sidebar Layout */}
-      <aside className="w-80 bg-[#0f172a]/40 backdrop-blur-2xl border-r border-slate-800 p-8 flex flex-col justify-between hidden lg:flex">
-        <div>
-          <div className="flex items-center gap-3 mb-12">
-            <div className="bg-indigo-600 p-2.5 rounded-xl shadow-lg shadow-indigo-500/20">
-              <BookOpen size={28} className="text-white" />
-            </div>
-            <h1 className="text-2xl font-black tracking-tighter uppercase italic">LexiBuild</h1>
+    <div className="min-h-screen bg-[#020617] text-slate-100 flex font-sans overflow-hidden">
+      {/* Premium Sidebar */}
+      <aside className="w-80 bg-[#0f172a]/50 backdrop-blur-3xl border-r border-slate-800 p-8 flex flex-col hidden lg:flex">
+        <div className="flex items-center gap-3 mb-16">
+          <div className="bg-indigo-600 p-2.5 rounded-xl shadow-lg shadow-indigo-500/20">
+            <BookOpen size={28} className="text-white" />
           </div>
-          
-          <nav className="space-y-4">
-            <label className="flex items-center gap-4 p-4 bg-indigo-600 hover:bg-indigo-700 rounded-2xl cursor-pointer transition-all font-bold group">
-              <Plus size={20} className="group-hover:rotate-90 transition-transform" /> 
-              Import PDF
-              <input type="file" className="hidden" onChange={handleFile} accept=".pdf,.txt" />
-            </label>
-            <div className="p-4 bg-slate-800/40 rounded-2xl border border-slate-800/50">
-              <p className="text-xs font-bold text-slate-500 uppercase mb-4 tracking-widest">Library Stats</p>
-              <div className="flex justify-between items-end">
-                <span className="text-3xl font-black">{words.length}</span>
-                <span className="text-slate-400 text-sm mb-1">Words Stored</span>
-              </div>
-            </div>
-          </nav>
+          <h1 className="text-2xl font-black tracking-tighter uppercase italic">LEXIBUILD</h1>
         </div>
+        
+        <nav className="space-y-6 flex-grow">
+          <label className="flex items-center gap-4 p-4 bg-indigo-600 hover:bg-indigo-700 rounded-2xl cursor-pointer transition-all font-bold shadow-lg shadow-indigo-600/10">
+            <Plus size={20} /> Import PDF
+            <input type="file" className="hidden" onChange={handleFile} accept=".pdf,.txt" />
+          </label>
+          
+          <div className="p-5 bg-slate-800/30 rounded-2xl border border-white/5 space-y-1">
+            <p className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em] mb-2">Workspace</p>
+            <div className="flex items-center gap-3 text-slate-400 font-bold text-sm hover:text-white transition-colors cursor-pointer p-2">
+               <LayoutDashboard size={18} /> Overview
+            </div>
+          </div>
+        </nav>
 
-        <button className="text-slate-500 hover:text-white transition-colors text-sm font-bold flex items-center gap-2">
-          Settings <ArrowRight size={14} />
-        </button>
+        <div className="mt-auto p-5 bg-slate-900/80 rounded-3xl border border-white/5">
+          <p className="text-xs font-bold text-slate-500 uppercase mb-3 tracking-widest">Library Stats</p>
+          <div className="flex justify-between items-end">
+            <span className="text-4xl font-black text-white">{words.length}</span>
+            <span className="text-slate-500 text-xs mb-1 font-bold">Stored Terms</span>
+          </div>
+        </div>
       </aside>
 
-      {/* Main Content Area */}
-      <main className="flex-grow flex flex-col p-6 md:p-10 lg:p-16 overflow-y-auto">
-        <header className="flex flex-col md:flex-row justify-between items-center mb-16 gap-6">
+      {/* Glassmorphic Content Area */}
+      <main className="flex-grow flex flex-col p-6 md:p-12 overflow-y-auto">
+        <header className="flex justify-between items-center mb-16">
           <div className="relative w-full max-w-xl">
             <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-500" size={22} />
             <input 
               type="text" 
               placeholder="Search library..." 
-              className="w-full bg-slate-900/60 backdrop-blur-md border border-slate-800 focus:border-indigo-500 pl-16 pr-6 py-5 rounded-3xl outline-none transition-all text-lg font-medium shadow-2xl shadow-black/50"
+              className="w-full bg-slate-900/60 backdrop-blur-xl border border-slate-800 focus:border-indigo-500/50 pl-16 pr-6 py-5 rounded-3xl outline-none transition-all text-lg font-medium shadow-2xl shadow-black/50"
               onChange={(e) => setSearch(e.target.value.toLowerCase())}
             />
           </div>
-          <button className="p-5 bg-slate-800/50 rounded-2xl border border-slate-800 hover:border-indigo-500 transition-all">
-            <Download size={22} />
-          </button>
         </header>
 
         {status.loading && (
           <div className="mb-12 p-8 bg-indigo-600/10 border border-indigo-500/20 rounded-3xl flex items-center justify-center gap-4 animate-pulse">
             <Loader2 className="animate-spin text-indigo-400" />
-            <span className="font-black text-sm uppercase tracking-[0.2em] text-indigo-400">{status.msg}</span>
+            <span className="font-black text-sm uppercase tracking-[0.25em] text-indigo-400">{status.msg}</span>
           </div>
         )}
 
-        {/* Dashboard Grid */}
+        {/* The Glass Word Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
           {words.filter(w => w.word.includes(search)).map((w) => (
-            <div key={w.id} className="bg-slate-900/30 backdrop-blur-xl border border-white/5 hover:border-white/10 p-8 rounded-[2.5rem] transition-all duration-500 group relative">
-              <div className="flex justify-between items-start mb-6">
-                <div>
-                  <h2 className="text-3xl font-black text-white capitalize mb-1 tracking-tight">{w.word}</h2>
-                  <div className="flex items-center gap-3">
-                    <button onClick={() => playAudio(w.audioUrl)} className="text-indigo-400 hover:text-white transition-colors bg-indigo-500/10 hover:bg-indigo-600 p-2.5 rounded-xl">
+            <div key={w.id} className="bg-slate-900/30 backdrop-blur-2xl border border-white/5 hover:border-white/10 p-10 rounded-[2.5rem] transition-all duration-500 group relative flex flex-col justify-between min-h-[340px]">
+              <div>
+                <div className="flex justify-between items-start mb-6">
+                  <h2 className="text-3xl font-black text-white capitalize tracking-tighter group-hover:text-indigo-400 transition-colors">{w.word}</h2>
+                  <div className="flex gap-2">
+                    <button onClick={() => playAudio(w.audioUrl)} className="text-slate-500 hover:text-white transition-colors bg-white/5 hover:bg-indigo-600 p-2.5 rounded-xl">
                       <Volume2 size={20} />
+                    </button>
+                    <button onClick={() => deleteWord(w.id)} className="text-slate-500 hover:text-red-500 transition-colors bg-white/5 hover:bg-red-500/20 p-2.5 rounded-xl">
+                      <Trash2 size={20} />
                     </button>
                   </div>
                 </div>
-                <button onClick={() => deleteWord(w.id)} className="p-2 text-slate-700 hover:text-red-500 transition-colors">
-                  <Trash2 size={20} />
-                </button>
+
+                <p className="text-slate-400 text-lg leading-relaxed mb-10 font-medium group-hover:text-slate-200 transition-colors line-clamp-4">
+                  {w.definition}
+                </p>
               </div>
 
-              <p className="text-slate-400 text-lg leading-relaxed mb-8 font-medium line-clamp-3 group-hover:text-slate-200 transition-colors">
-                {w.definition}
-              </p>
-
-              <div className="bg-slate-950/40 p-6 rounded-3xl border border-white/5 relative">
+              <div className="bg-black/20 p-6 rounded-3xl border border-white/5 relative">
                 <span className="absolute -top-3 left-4 text-3xl text-indigo-500/30 italic">"</span>
-                <p className="text-sm text-slate-500 italic leading-relaxed">{w.context}</p>
+                <p className="text-sm text-slate-500 italic leading-relaxed line-clamp-2">{w.context}</p>
               </div>
             </div>
           ))}
