@@ -7,8 +7,7 @@ import * as pdfjsLib from 'pdfjs-dist';
 
 // FIX: Set the worker source safely. 
 // Ensure this matches the version installed in package.json (4.4.168)
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
-
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs';
 const STOP_WORDS = new Set(["the", "and", "was", "for", "that", "with", "this", "are", "have", "from", "but", "not", "you", "all", "any", "can", "had", "her", "him", "his", "its", "one", "our", "out", "she", "there", "their", "they", "will", "would"]);
 
 export default function VocabApp() {
@@ -186,3 +185,4 @@ export default function VocabApp() {
     </div>
   );
 }
+
