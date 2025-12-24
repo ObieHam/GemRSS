@@ -1,10 +1,13 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { db } from '../lib/db';
-import { Upload, Download, Search, BookOpen, Loader2, Trash2, Volume2, Plus, LayoutDashboard } from 'lucide-react';
-import * as pdfjsLib from 'pdfjs-dist/build/pdf';
+import { Upload, Search, BookOpen, Loader2, Trash2, Volume2, Plus, LayoutDashboard } from 'lucide-react';
+// FIX: Use the standard entry point for pdfjs-dist, not the legacy build folder
+import * as pdfjsLib from 'pdfjs-dist';
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+// FIX: Set the worker source safely. 
+// Ensure this matches the version installed in package.json (4.4.168)
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
 
 const STOP_WORDS = new Set(["the", "and", "was", "for", "that", "with", "this", "are", "have", "from", "but", "not", "you", "all", "any", "can", "had", "her", "him", "his", "its", "one", "our", "out", "she", "there", "their", "they", "will", "would"]);
 
@@ -16,11 +19,17 @@ export default function VocabApp() {
   useEffect(() => { loadWords(); }, []);
 
   const loadWords = async () => {
-    const all = await db.vocabulary.toArray();
-    setWords(all.sort((a, b) => b.dateAdded - a.dateAdded));
+    try {
+      const all = await db.vocabulary.toArray();
+      setWords(all.sort((a, b) => b.dateAdded - a.dateAdded));
+    } catch (error) {
+      console.error("Failed to load words", error);
+    }
   };
 
-  const playAudio = (url) => { if (url) new Audio(url).play(); };
+  const playAudio = (url) => { 
+    if (url) new Audio(url).play().catch(e => console.error("Audio play failed", e)); 
+  };
 
   const deleteWord = async (id) => {
     await db.vocabulary.delete(id);
@@ -55,7 +64,9 @@ export default function VocabApp() {
             });
             await loadWords();
           }
-        } catch (e) { console.error(e); }
+        } catch (e) { 
+          console.error("Definition fetch error", e); 
+        }
       }
     }
   };
@@ -67,21 +78,30 @@ export default function VocabApp() {
     try {
       let text = "";
       if (file.type === "application/pdf") {
-        const doc = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
+        const arrayBuffer = await file.arrayBuffer();
+        // Loading document using the fixed pdfjsLib import
+        const doc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        
         for (let i = 1; i <= doc.numPages; i++) {
           const page = await doc.getPage(i);
           const content = await page.getTextContent();
           text += content.items.map(s => s.str).join(" ") + " ";
         }
-      } else { text = await file.text(); }
+      } else { 
+        text = await file.text(); 
+      }
       await processContent(text);
-    } catch (err) { alert("Format not supported."); }
-    setStatus({ loading: false, msg: '' });
+    } catch (err) { 
+      console.error(err);
+      alert("Error processing file. See console for details."); 
+    } finally {
+      setStatus({ loading: false, msg: '' });
+    }
   };
 
   return (
     <div className="min-h-screen bg-[#020617] text-slate-100 flex font-sans overflow-hidden">
-      {/* Premium Sidebar */}
+      {/* Sidebar */}
       <aside className="w-80 bg-[#0f172a]/50 backdrop-blur-3xl border-r border-slate-800 p-8 flex flex-col hidden lg:flex">
         <div className="flex items-center gap-3 mb-16">
           <div className="bg-indigo-600 p-2.5 rounded-xl shadow-lg shadow-indigo-500/20">
@@ -113,7 +133,7 @@ export default function VocabApp() {
         </div>
       </aside>
 
-      {/* Glassmorphic Content Area */}
+      {/* Main Content */}
       <main className="flex-grow flex flex-col p-6 md:p-12 overflow-y-auto">
         <header className="flex justify-between items-center mb-16">
           <div className="relative w-full max-w-xl">
@@ -134,9 +154,8 @@ export default function VocabApp() {
           </div>
         )}
 
-        {/* The Glass Word Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
-          {words.filter(w => w.word.includes(search)).map((w) => (
+          {words.filter(w => w.word && w.word.toLowerCase().includes(search)).map((w) => (
             <div key={w.id} className="bg-slate-900/30 backdrop-blur-2xl border border-white/5 hover:border-white/10 p-10 rounded-[2.5rem] transition-all duration-500 group relative flex flex-col justify-between min-h-[340px]">
               <div>
                 <div className="flex justify-between items-start mb-6">
