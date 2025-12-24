@@ -16,7 +16,7 @@ export async function GET(request) {
       let audioUrl = null;
 
       if (audioFile) {
-        // Merriam-Webster audio subdirectory logic:
+        // Merriam-Webster audio subdirectory rules:
         let subdirectory = audioFile.charAt(0);
         if (audioFile.startsWith("bix")) subdirectory = "bix";
         else if (audioFile.startsWith("gg")) subdirectory = "gg";
@@ -28,7 +28,7 @@ export async function GET(request) {
       return Response.json({
         baseWord: data[0].hwi?.hw?.replace(/\*/g, "").toLowerCase() || word.toLowerCase(),
         definition: data[0].shortdef?.[0] || "No definition found",
-        audioUrl: audioUrl, // MP3 link for playback
+        audioUrl: audioUrl,
         dateAdded: Date.now()
       });
     }
