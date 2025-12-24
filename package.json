@@ -1,0 +1,23 @@
+{
+  "name": "vocab-builder",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "next": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "dexie": "^4.0.1",
+    "lucide-react": "^0.300.0",
+    "pdfjs-dist": "^4.0.310"
+  },
+  "devDependencies": {
+    "autoprefixer": "latest",
+    "postcss": "latest",
+    "tailwindcss": "latest"
+  }
+}
