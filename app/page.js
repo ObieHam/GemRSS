@@ -1,10 +1,9 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { db } from '../lib/db';
-import { Upload, Download, Search, BookOpen, Loader2, Trash2 } from 'lucide-react';
+import { Upload, Download, Search, BookOpen, Loader2, Trash2, Volume2, Play } from 'lucide-react';
 import * as pdfjsLib from 'pdfjs-dist/build/pdf';
 
-// Worker setup for PDF parsing
 pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
 
 const STOP_WORDS = new Set(["the", "and", "was", "for", "that", "with", "this", "are", "have", "from", "but", "not", "you", "all", "any", "can", "had", "her", "him", "his", "its", "one", "our", "out", "she", "there", "their", "they", "will", "would"]);
@@ -14,60 +13,53 @@ export default function VocabApp() {
   const [status, setStatus] = useState({ loading: false, msg: '' });
   const [search, setSearch] = useState("");
 
-  // Load words on initial startup
   useEffect(() => { loadWords(); }, []);
 
   const loadWords = async () => {
     const all = await db.vocabulary.toArray();
-    // Sort by most recently added
     setWords(all.sort((a, b) => b.dateAdded - a.dateAdded));
   };
 
+  const playAudio = (url) => {
+    if (!url) return;
+    const audio = new Audio(url);
+    audio.play();
+  };
+
   const deleteWord = async (id) => {
-    if (confirm("Permanently delete this word?")) {
-      await db.vocabulary.delete(id);
-      await loadWords();
-    }
+    await db.vocabulary.delete(id);
+    await loadWords();
   };
 
   const processContent = async (text) => {
     const sentences = text.replace(/\n/g, " ").match(/[^.!?]+[.!?]+/g) || [text];
-    
     for (const sentence of sentences) {
-      // Find words with at least 4 letters
       const tokens = sentence.toLowerCase().match(/\b[a-z]{4,}\b/g);
       if (!tokens) continue;
 
       for (const token of tokens) {
         if (STOP_WORDS.has(token)) continue;
-        
-        // Prevent duplicate API calls for the same word in one document
-        const existsLocally = await db.vocabulary.where('word').equals(token).first();
-        if (existsLocally) continue;
+        const exists = await db.vocabulary.where('word').equals(token).first();
+        if (exists) continue;
 
-        setStatus({ loading: true, msg: `Analyzing: ${token}...` });
-        
+        setStatus({ loading: true, msg: `Unlocking: ${token}` });
         try {
           const res = await fetch(`/api/define?word=${token}`);
           if (!res.ok) continue;
-          
           const info = await res.json();
-          
-          // Final check: did the base form (lemmatized) already exist?
           const baseExists = await db.vocabulary.where('word').equals(info.baseWord).first();
           
           if (!baseExists && !info.error) {
             await db.vocabulary.add({
               word: info.baseWord,
               definition: info.definition,
-              pronunciation: info.pronunciation,
+              audioUrl: info.audioUrl,
               context: sentence.trim(),
               dateAdded: Date.now()
             });
-            // CRITICAL: Refresh the UI state after adding
-            await loadWords(); 
+            await loadWords();
           }
-        } catch (e) { console.error("Database or API error:", e); }
+        } catch (e) { console.error(e); }
       }
     }
   };
@@ -75,110 +67,123 @@ export default function VocabApp() {
   const handleFile = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    setStatus({ loading: true, msg: 'Initializing parser...' });
-
+    setStatus({ loading: true, msg: 'Decoding File...' });
     try {
       let text = "";
       if (file.type === "application/pdf") {
-        const arrayBuffer = await file.arrayBuffer();
-        const doc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        const doc = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
         for (let i = 1; i <= doc.numPages; i++) {
-          setStatus({ loading: true, msg: `Parsing PDF: Page ${i}/${doc.numPages}...` });
           const page = await doc.getPage(i);
           const content = await page.getTextContent();
           text += content.items.map(s => s.str).join(" ") + " ";
         }
-      } else {
-        text = await file.text();
-      }
+      } else { text = await file.text(); }
       await processContent(text);
-    } catch (err) { 
-      alert("Could not read file. Please ensure it's a valid PDF or TXT."); 
-    }
+    } catch (err) { alert("Format not supported."); }
     setStatus({ loading: false, msg: '' });
   };
 
   const exportCSV = () => {
     if (words.length === 0) return;
-    
-    // Helper to escape commas and quotes for CSV stability
-    const clean = (str) => `"${(str || "").toString().replace(/"/g, '""').replace(/\n/g, " ")}"`;
-    
-    const headers = ["Word", "Definition", "Pronunciation", "Context"];
-    const rows = words.map(w => [
-      clean(w.word), 
-      clean(w.definition), 
-      clean(w.pronunciation), 
-      clean(w.context)
-    ].join(","));
-    
-    const csvString = [headers.join(","), ...rows].join("\n");
-    const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    
+    const clean = (s) => `"${(s || "").toString().replace(/"/g, '""')}"`;
+    const rows = [["Word", "Definition", "Audio URL", "Context"], ...words.map(w => [w.word, w.definition, w.audioUrl, w.context])];
+    const content = "data:text/csv;charset=utf-8," + rows.map(r => r.map(clean).join(",")).join("\n");
     const link = document.createElement("a");
-    link.href = url;
-    link.download = `LexiBuild_Export_${new Date().toISOString().split('T')[0]}.csv`;
-    document.body.appendChild(link);
+    link.href = encodeURI(content);
+    link.download = "lexibuild_pro.csv";
     link.click();
-    document.body.removeChild(link);
   };
 
   return (
-    <div className="max-w-6xl mx-auto p-6 md:p-12 min-h-screen">
-      <header className="flex flex-col md:flex-row justify-between items-center mb-12 gap-6 bg-white p-10 rounded-[2.5rem] shadow-sm border border-slate-100">
-        <div className="text-center md:text-left">
-          <h1 className="text-4xl font-black text-indigo-600 flex items-center justify-center md:justify-start gap-3">
-            <BookOpen size={40} className="stroke-[2.5px]" /> LexiBuild
-          </h1>
-          <p className="text-slate-500 mt-2 font-medium">Smart Vocabulary • Indexed Storage • CSV Export</p>
-        </div>
-        <div className="flex gap-4">
-          <label className={`bg-indigo-600 hover:bg-indigo-700 text-white px-10 py-5 rounded-2xl font-bold cursor-pointer transition-all shadow-xl shadow-indigo-100 flex items-center gap-3 ${status.loading ? 'opacity-50 cursor-not-allowed' : ''}`}>
-            {status.loading ? <Loader2 className="animate-spin" size={22} /> : <Upload size={22} />}
-            {status.loading ? 'Processing...' : 'Upload File'}
-            <input type="file" className="hidden" onChange={handleFile} accept=".pdf,.txt" disabled={status.loading} />
-          </label>
-          <button onClick={exportCSV} disabled={words.length === 0} className="bg-white border-2 border-slate-200 hover:border-indigo-200 text-slate-700 px-10 py-5 rounded-2xl font-bold transition-all flex items-center gap-3 disabled:opacity-30">
-            <Download size={22} /> Export CSV
-          </button>
-        </div>
-      </header>
-
-      {status.loading && (
-        <div className="flex items-center justify-center gap-4 p-8 mb-10 bg-indigo-50 text-indigo-700 rounded-[2rem] border border-indigo-100">
-          <Loader2 className="animate-spin" size={28} />
-          <span className="font-bold text-lg tracking-tight">{status.msg}</span>
-        </div>
-      )}
-
-      <div className="relative mb-12 group">
-        <Search className="absolute left-6 top-6 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={26} />
-        <input 
-          type="text" 
-          placeholder={`Search ${words.length} saved words...`} 
-          className="w-full pl-16 pr-8 py-6 rounded-3xl border-2 border-slate-100 focus:border-indigo-500 outline-none transition-all text-xl shadow-sm bg-white"
-          onChange={(e) => setSearch(e.target.value.toLowerCase())}
-        />
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        {words.filter(w => w.word.includes(search)).map((w) => (
-          <div key={w.id} className="bg-white p-10 rounded-[2.5rem] shadow-sm border border-slate-100 hover:shadow-2xl hover:-translate-y-1 transition-all group relative overflow-hidden">
-            <button onClick={() => deleteWord(w.id)} className="absolute top-8 right-8 text-slate-300 hover:text-red-500 transition-colors z-20">
-              <Trash2 size={22} />
-            </button>
-            <div className="flex items-baseline gap-4 mb-5">
-              <h2 className="text-3xl font-extrabold text-slate-800 capitalize tracking-tight">{w.word}</h2>
-              <span className="text-indigo-400 font-mono text-base font-medium">/{w.pronunciation}/</span>
+    <div className="min-h-screen bg-[#0f172a] text-slate-200 p-4 md:p-10 font-sans selection:bg-indigo-500/30">
+      <div className="max-w-7xl mx-auto">
+        {/* Navigation Bar */}
+        <header className="flex flex-col lg:flex-row justify-between items-center mb-16 gap-8 bg-slate-900/50 backdrop-blur-xl border border-slate-800 p-8 rounded-[2rem] shadow-2xl">
+          <div className="flex items-center gap-4">
+            <div className="bg-gradient-to-br from-indigo-500 to-purple-600 p-3 rounded-2xl shadow-lg shadow-indigo-500/20">
+              <BookOpen size={32} className="text-white" />
             </div>
-            <p className="text-slate-600 leading-relaxed mb-8 text-lg font-medium">{w.definition}</p>
-            <div className="bg-slate-50 p-6 rounded-3xl border-l-4 border-indigo-400 relative">
-               <span className="absolute -top-3 left-4 text-4xl text-indigo-200 font-serif">“</span>
-              <p className="text-base text-slate-500 italic leading-relaxed relative z-10">{w.context}”</p>
+            <div>
+              <h1 className="text-3xl font-black tracking-tighter text-white">LEXIBUILD <span className="text-indigo-500 text-sm align-top">PRO</span></h1>
+              <p className="text-slate-500 text-xs font-bold tracking-widest uppercase">Intelligent Lexicon Engine</p>
             </div>
           </div>
-        ))}
+          
+          <div className="flex flex-wrap justify-center gap-4">
+            <label className="group relative overflow-hidden bg-slate-800 hover:bg-indigo-600 text-white px-8 py-4 rounded-2xl font-bold cursor-pointer transition-all duration-300 flex items-center gap-3">
+              <Upload size={20} className="group-hover:-translate-y-1 transition-transform" />
+              <span>{status.loading ? 'ANALYZING...' : 'IMPORT SOURCE'}</span>
+              <input type="file" className="hidden" onChange={handleFile} accept=".pdf,.txt" disabled={status.loading} />
+            </label>
+            <button onClick={exportCSV} className="bg-slate-800 border border-slate-700 hover:border-indigo-500/50 text-slate-300 px-8 py-4 rounded-2xl font-bold transition-all flex items-center gap-3 active:scale-95">
+              <Download size={20} /> EXPORT
+            </button>
+          </div>
+        </header>
+
+        {/* Global Status Bar */}
+        {status.loading && (
+          <div className="mb-12 flex items-center justify-center gap-4 py-4 bg-indigo-500/10 border border-indigo-500/20 rounded-2xl animate-pulse">
+            <Loader2 className="animate-spin text-indigo-400" />
+            <span className="text-indigo-400 font-black text-sm uppercase tracking-widest">{status.msg}</span>
+          </div>
+        )}
+
+        {/* Search & Stats */}
+        <div className="flex flex-col md:flex-row gap-6 mb-12">
+          <div className="relative flex-grow">
+            <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-500" size={22} />
+            <input 
+              type="text" 
+              placeholder="Filter library..." 
+              className="w-full bg-slate-900/80 border border-slate-800 focus:border-indigo-500/50 focus:ring-4 focus:ring-indigo-500/10 pl-16 pr-6 py-5 rounded-3xl outline-none transition-all text-lg font-medium"
+              onChange={(e) => setSearch(e.target.value.toLowerCase())}
+            />
+          </div>
+          <div className="bg-slate-900/80 border border-slate-800 px-8 py-5 rounded-3xl flex items-center gap-4">
+            <span className="text-slate-500 font-bold text-sm uppercase">Total Words</span>
+            <span className="text-2xl font-black text-white">{words.length}</span>
+          </div>
+        </div>
+
+        {/* Vocabulary Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+          {words.filter(w => w.word.includes(search)).map((w) => (
+            <div key={w.id} className="group bg-slate-900/40 hover:bg-slate-800/60 border border-slate-800 hover:border-slate-700 p-8 rounded-[2.5rem] transition-all duration-500 relative flex flex-col justify-between overflow-hidden">
+              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-indigo-500/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+              
+              <div>
+                <div className="flex justify-between items-start mb-6">
+                  <div className="flex items-center gap-3">
+                    <h2 className="text-3xl font-black text-white capitalize tracking-tight">{w.word}</h2>
+                    {w.audioUrl && (
+                      <button 
+                        onClick={() => playAudio(w.audioUrl)}
+                        className="bg-indigo-500/10 hover:bg-indigo-500 text-indigo-400 hover:text-white p-2 rounded-xl transition-all active:scale-90"
+                      >
+                        <Volume2 size={20} />
+                      </button>
+                    )}
+                  </div>
+                  <button onClick={() => deleteWord(w.id)} className="text-slate-700 hover:text-red-500 transition-colors p-1">
+                    <Trash2 size={20} />
+                  </button>
+                </div>
+                <p className="text-slate-400 text-lg leading-relaxed mb-8 font-medium line-clamp-3 group-hover:text-slate-300 transition-colors">
+                  {w.definition}
+                </p>
+              </div>
+
+              <div className="bg-slate-950/50 p-6 rounded-[1.5rem] border border-slate-800/50 relative">
+                <p className="text-sm text-slate-500 italic leading-relaxed">
+                  <span className="text-indigo-500 font-serif text-xl mr-1 italic">"</span>
+                  {w.context}
+                  <span className="text-indigo-500 font-serif text-xl ml-1 italic">"</span>
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
