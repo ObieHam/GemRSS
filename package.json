@@ -13,11 +13,12 @@
     "react-dom": "19.0.0",
     "dexie": "^4.0.1",
     "lucide-react": "^0.468.0",
-    "pdfjs-dist": "4.4.168"
+    "pdfjs-dist": "4.4.168",
+    "@tailwindcss/postcss": "^4.0.0",
+    "tailwindcss": "^4.0.0"
   },
   "devDependencies": {
     "autoprefixer": "latest",
-    "postcss": "latest",
-    "tailwindcss": "latest"
+    "postcss": "latest"
   }
 }
