@@ -1,5 +1,5 @@
 {
-  "name": "vocab-builder",
+  "name": "lexibuild-app",
   "version": "1.0.0",
   "private": true,
   "scripts": {
@@ -8,12 +8,12 @@
     "start": "next start"
   },
   "dependencies": {
-    "next": "latest",
-    "react": "latest",
-    "react-dom": "latest",
+    "next": "15.1.0",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
     "dexie": "^4.0.1",
-    "lucide-react": "^0.300.0",
-    "pdfjs-dist": "^4.0.310"
+    "lucide-react": "^0.468.0",
+    "pdfjs-dist": "4.4.168"
   },
   "devDependencies": {
     "autoprefixer": "latest",
