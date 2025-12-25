@@ -10,6 +10,7 @@ import ParseView from '../components/ParseView';
 import BrowseView from '../components/BrowseView';
 import ReaderView from '../components/ReaderView';
 import FlashcardView from '../components/FlashcardView';
+import SpellingView from '../components/SpellingView'; // Integrated Spelling Component
 
 // Set up PDF.js worker
 if (typeof window !== 'undefined') {
@@ -70,6 +71,7 @@ export default function LexiBuildApp() {
           {view === 'browse' && <BrowseView words={words} loadWords={loadWords} settings={settings} />}
           {view === 'reader' && <ReaderView settings={settings} loadWords={loadWords} words={words} />}
           {view === 'flashcards' && <FlashcardView words={words} settings={settings} />}
+          {view === 'spelling' && <SpellingView words={words} settings={settings} />}
         </div>
       </div>
       {showSettings && (
