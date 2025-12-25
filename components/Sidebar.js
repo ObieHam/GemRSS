@@ -1,4 +1,4 @@
-import { BookOpen, Upload, List, FileText, Settings, Menu, X, Brain } from 'lucide-react';
+import { BookOpen, Upload, List, FileText, Settings, Menu, X, Brain, Volume2 } from 'lucide-react';
 
 export default function Sidebar({ view, setView, sidebarOpen, setSidebarOpen, onSettingsClick }) {
   return (
@@ -53,6 +53,13 @@ export default function Sidebar({ view, setView, sidebarOpen, setSidebarOpen, on
           >
             <Brain size={20} />
             {sidebarOpen && <span className="font-bold">Flashcards</span>}
+          </button>
+          <button
+            onClick={() => setView('spelling')}
+            className={`w-full flex items-center gap-4 p-4 rounded-xl transition-colors ${view === 'spelling' ? 'bg-indigo-500 text-white' : 'hover:bg-slate-800 text-slate-400'}`}
+          >
+            <Volume2 size={20} />
+            {sidebarOpen && <span className="font-bold">Spelling</span>}
           </button>
           <button
             onClick={onSettingsClick}
