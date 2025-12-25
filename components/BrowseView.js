@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, Trash2, Volume2, AlertTriangle } from 'lucide-react';
+import { Search, Trash2, Volume2, AlertTriangle, BookOpen } from 'lucide-react';
 import { db } from '../lib/storage';
 
 export default function BrowseView({ words, loadWords, settings }) {
@@ -54,6 +54,44 @@ export default function BrowseView({ words, loadWords, settings }) {
             <Trash2 size={20} />
             Clear All
           </button>
+        </div>
+
+        {/* Library Stats */}
+        <div className="mb-8 grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-slate-900 border-2 border-slate-700 rounded-2xl p-6">
+            <div className="flex items-center gap-3 mb-2">
+              <BookOpen size={20} className="text-indigo-400" />
+              <p className="text-slate-400 text-sm font-bold uppercase tracking-wider">Total Words</p>
+            </div>
+            <p className="text-4xl font-black text-white">{words.length}</p>
+          </div>
+          
+          <div className="bg-slate-900 border-2 border-slate-700 rounded-2xl p-6">
+            <div className="flex items-center gap-3 mb-2">
+              <BookOpen size={20} className="text-purple-400" />
+              <p className="text-slate-400 text-sm font-bold uppercase tracking-wider">Added Today</p>
+            </div>
+            <p className="text-4xl font-black text-white">
+              {words.filter(w => {
+                const today = new Date().setHours(0, 0, 0, 0);
+                const wordDate = new Date(w.dateAdded).setHours(0, 0, 0, 0);
+                return wordDate === today;
+              }).length}
+            </p>
+          </div>
+
+          <div className="bg-slate-900 border-2 border-slate-700 rounded-2xl p-6">
+            <div className="flex items-center gap-3 mb-2">
+              <BookOpen size={20} className="text-pink-400" />
+              <p className="text-slate-400 text-sm font-bold uppercase tracking-wider">This Week</p>
+            </div>
+            <p className="text-4xl font-black text-white">
+              {words.filter(w => {
+                const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+                return w.dateAdded >= weekAgo;
+              }).length}
+            </p>
+          </div>
         </div>
         
         <div className="relative mb-8">
