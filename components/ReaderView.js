@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Upload, Loader2, X, ChevronLeft, ChevronRight, Volume2, Plus } from 'lucide-react';
+import { Upload, Loader2, X, ChevronLeft, ChevronRight, Volume2, Plus, Info } from 'lucide-react';
 import * as pdfjsLib from 'pdfjs-dist';
 import { db } from '../lib/storage';
 import { COMMON_WORDS } from '../lib/constants';
@@ -14,6 +14,7 @@ export default function ReaderView({ settings, loadWords, words }) {
   const [selectedWord, setSelectedWord] = useState(null);
   const [definitionPanel, setDefinitionPanel] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [showHint, setShowHint] = useState(true);
   const fileInputRef = useRef(null);
 
   const handleFileUpload = async (e) => {
@@ -77,66 +78,74 @@ export default function ReaderView({ settings, loadWords, words }) {
   useEffect(() => {
     if (pdfPages.length > 0 && currentPage > 0) {
       analyzePageWords(pdfPages[currentPage - 1]);
-      setDefinitionPanel(null);
     }
   }, [currentPage, pdfPages, words]);
 
-  const handleWordClick = async (word) => {
+  const playAudio = (audioData) => {
+    if (settings.apiSource === 'free-dictionary' && audioData.phonetics) {
+      const accentMap = { us: '-us', uk: '-uk', au: '-au' };
+      const preferredAudio = audioData.phonetics.find(p =>
+        p.audio && p.audio.includes(accentMap[settings.accent])
+      );
+      const audioUrl = preferredAudio?.audio || audioData.phonetics.find(p => p.audio)?.audio;
+
+      if (audioUrl) {
+        new Audio(audioUrl).play().catch(e => console.error("Audio play failed", e));
+      }
+    } else if (audioData.audioUrl) {
+      new Audio(audioData.audioUrl).play().catch(e => console.error("Audio play failed", e));
+    }
+  };
+
+  const handleWordClick = async (word, isRightClick = false) => {
     const lowerWord = word.toLowerCase();
     
-    if (!isValidWord(lowerWord) && word !== word.toUpperCase()) {
-      return;
-    }
-    
     setSelectedWord(lowerWord);
-    setDefinitionPanel({ loading: true });
+    setDefinitionPanel({ loading: true, word: lowerWord });
     
     try {
       const info = await fetchDefinition(lowerWord, settings);
       
       if (info.error) {
-        setDefinitionPanel({ error: info.error });
+        setDefinitionPanel({ error: info.error, word: lowerWord });
         return;
       }
       
       setDefinitionPanel(info);
 
-      if (settings.autoSave) {
-        await db.vocabulary.add(info);
-        await loadWords();
-        setHighlightedWords(prev => prev.filter(w => w.toLowerCase() !== info.word));
+      // Auto-play audio
+      playAudio(info);
+
+      // Auto-save if enabled and not right-click (right-click is for looking up existing words)
+      if (settings.autoSave && !isRightClick) {
+        const exists = await db.vocabulary.where('word').equals(info.word).first();
+        if (!exists) {
+          await db.vocabulary.add(info);
+          await loadWords();
+          setHighlightedWords(prev => prev.filter(w => w.toLowerCase() !== info.word));
+        }
       }
     } catch (error) {
       console.error('Error fetching definition:', error);
-      setDefinitionPanel({ error: 'Failed to load definition' });
+      setDefinitionPanel({ error: 'Failed to load definition', word: lowerWord });
     }
   };
 
   const addToLibrary = async () => {
     if (definitionPanel && !definitionPanel.loading && !definitionPanel.error) {
-      await db.vocabulary.add(definitionPanel);
-      await loadWords();
-      setHighlightedWords(prev => prev.filter(w => w.toLowerCase() !== definitionPanel.word));
-      setDefinitionPanel(null);
+      const exists = await db.vocabulary.where('word').equals(definitionPanel.word).first();
+      if (!exists) {
+        await db.vocabulary.add(definitionPanel);
+        await loadWords();
+        setHighlightedWords(prev => prev.filter(w => w.toLowerCase() !== definitionPanel.word));
+      }
+      // Panel stays open showing the same word
     }
   };
 
-  const playAudio = () => {
-    if (!definitionPanel) return;
-    
-    if (settings.apiSource === 'free-dictionary' && definitionPanel.phonetics) {
-      const accentMap = { us: '-us', uk: '-uk', au: '-au' };
-      const preferredAudio = definitionPanel.phonetics.find(p =>
-        p.audio && p.audio.includes(accentMap[settings.accent])
-      );
-      const audioUrl = preferredAudio?.audio || definitionPanel.phonetics.find(p => p.audio)?.audio;
-
-      if (audioUrl) {
-        new Audio(audioUrl).play().catch(e => console.error("Audio play failed", e));
-      }
-    } else if (definitionPanel.audioUrl) {
-      new Audio(definitionPanel.audioUrl).play().catch(e => console.error("Audio play failed", e));
-    }
+  const handleContextMenu = (e, word) => {
+    e.preventDefault();
+    handleWordClick(word, true);
   };
 
   const renderText = () => {
@@ -147,15 +156,18 @@ export default function ReaderView({ settings, loadWords, words }) {
     return (
       <div className="text-slate-200 leading-relaxed text-lg">
         {parts.map((part, idx) => {
-          if (highlightedWords.includes(part)) {
+          const cleanPart = part.trim();
+          if (cleanPart && /^[a-zA-Z]+$/.test(cleanPart)) {
+            const isHighlighted = highlightedWords.includes(part);
             return (
-              <mark
+              <span
                 key={idx}
-                className="bg-yellow-400/40 border-b-2 border-yellow-500 cursor-pointer hover:bg-yellow-400/60 transition-colors px-0.5"
+                className={`${isHighlighted ? 'bg-gradient-to-r from-amber-400/30 to-yellow-400/30 px-1 rounded-md border-b-2 border-amber-500/50 cursor-pointer hover:from-amber-400/50 hover:to-yellow-400/50 transition-all' : 'cursor-pointer hover:bg-slate-700/30 px-0.5 rounded'}`}
                 onClick={() => handleWordClick(part)}
+                onContextMenu={(e) => handleContextMenu(e, part)}
               >
                 {part}
-              </mark>
+              </span>
             );
           }
           return <span key={idx}>{part}</span>;
@@ -191,7 +203,18 @@ export default function ReaderView({ settings, loadWords, words }) {
         ) : (
           <div className="max-w-4xl mx-auto">
             <div className="flex items-center justify-between mb-8">
-              <h2 className="text-3xl font-black text-white">Reading Mode</h2>
+              <div className="flex items-center gap-4">
+                <h2 className="text-3xl font-black text-white">Reading Mode</h2>
+                {showHint && (
+                  <div className="flex items-center gap-2 bg-indigo-500/20 border border-indigo-500/30 rounded-xl px-4 py-2 text-sm">
+                    <Info size={16} className="text-indigo-400" />
+                    <span className="text-indigo-300">Right-click any word to look it up</span>
+                    <button onClick={() => setShowHint(false)} className="text-indigo-400 hover:text-indigo-300 ml-2">
+                      <X size={16} />
+                    </button>
+                  </div>
+                )}
+              </div>
               <div className="flex items-center gap-4">
                 <button
                   onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
@@ -259,7 +282,7 @@ export default function ReaderView({ settings, loadWords, words }) {
                 {((settings.apiSource === 'free-dictionary' && definitionPanel.phonetics?.some(p => p.audio)) ||
                   (settings.apiSource === 'merriam-webster' && definitionPanel.audioUrl)) && (
                   <button
-                    onClick={playAudio}
+                    onClick={() => playAudio(definitionPanel)}
                     className="w-full flex items-center justify-center gap-3 px-6 py-3 bg-slate-800 hover:bg-slate-700 rounded-xl transition-colors font-bold"
                   >
                     <Volume2 size={20} />
