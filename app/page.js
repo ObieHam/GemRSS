@@ -32,10 +32,12 @@ const COMMON_WORDS = new Set([
 const db = {
   vocabulary: {
     toArray: async () => {
+      if (typeof window === 'undefined') return [];
       const words = localStorage.getItem('vocabWords');
       return words ? JSON.parse(words) : [];
     },
     add: async (word) => {
+      if (typeof window === 'undefined') return word;
       const words = await db.vocabulary.toArray();
       const newWord = { ...word, id: Date.now() + Math.random() };
       words.push(newWord);
@@ -43,16 +45,19 @@ const db = {
       return newWord;
     },
     delete: async (id) => {
+      if (typeof window === 'undefined') return;
       const words = await db.vocabulary.toArray();
       const filtered = words.filter(w => w.id !== id);
       localStorage.setItem('vocabWords', JSON.stringify(filtered));
     },
     clear: async () => {
+      if (typeof window === 'undefined') return;
       localStorage.setItem('vocabWords', JSON.stringify([]));
     },
     where: (field) => ({
       equals: (value) => ({
         first: async () => {
+          if (typeof window === 'undefined') return null;
           const words = await db.vocabulary.toArray();
           return words.find(w => w[field] === value);
         }
@@ -63,16 +68,25 @@ const db = {
 
 // Settings management
 const getSettings = () => {
+  if (typeof window === 'undefined') {
+    return {
+      apiSource: 'free-dictionary',
+      accent: 'us',
+      autoSave: false,
+      mwApiKey: ''
+    };
+  }
   const settings = localStorage.getItem('appSettings');
   return settings ? JSON.parse(settings) : {
-    apiSource: 'free-dictionary', // 'free-dictionary' or 'merriam-webster'
-    accent: 'us', // 'us', 'uk', 'au'
+    apiSource: 'free-dictionary',
+    accent: 'us',
     autoSave: false,
     mwApiKey: ''
   };
 };
 
 const saveSettings = (settings) => {
+  if (typeof window === 'undefined') return;
   localStorage.setItem('appSettings', JSON.stringify(settings));
 };
 
@@ -103,8 +117,10 @@ const isValidWord = (word) => {
 // API call functions with caching
 const fetchFromFreeDictionary = async (word) => {
   const cacheKey = `dict_free_${word}`;
-  const cached = localStorage.getItem(cacheKey);
-  if (cached) return JSON.parse(cached);
+  if (typeof window !== 'undefined') {
+    const cached = localStorage.getItem(cacheKey);
+    if (cached) return JSON.parse(cached);
+  }
 
   try {
     const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${word}`);
@@ -121,7 +137,9 @@ const fetchFromFreeDictionary = async (word) => {
       dateAdded: Date.now()
     };
     
-    localStorage.setItem(cacheKey, JSON.stringify(result));
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(cacheKey, JSON.stringify(result));
+    }
     return result;
   } catch (error) {
     return { error: 'Word not found' };
@@ -130,8 +148,10 @@ const fetchFromFreeDictionary = async (word) => {
 
 const fetchFromMerriamWebster = async (word, apiKey) => {
   const cacheKey = `dict_mw_${word}`;
-  const cached = localStorage.getItem(cacheKey);
-  if (cached) return JSON.parse(cached);
+  if (typeof window !== 'undefined') {
+    const cached = localStorage.getItem(cacheKey);
+    if (cached) return JSON.parse(cached);
+  }
 
   if (!apiKey) return { error: 'API key required' };
 
@@ -159,7 +179,9 @@ const fetchFromMerriamWebster = async (word, apiKey) => {
         dateAdded: Date.now()
       };
       
-      localStorage.setItem(cacheKey, JSON.stringify(result));
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(cacheKey, JSON.stringify(result));
+      }
       return result;
     }
     return { error: 'Word not found' };
@@ -604,11 +626,13 @@ function BrowseView({ words, loadWords, settings }) {
   const clearAll = async () => {
     await db.vocabulary.clear();
     // Clear all cached definitions
-    Object.keys(localStorage).forEach(key => {
-      if (key.startsWith('dict_')) {
-        localStorage.removeItem(key);
-      }
-    });
+    if (typeof window !== 'undefined') {
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('dict_')) {
+          localStorage.removeItem(key);
+        }
+      });
+    }
     await loadWords();
     setShowClearConfirm(false);
   };
