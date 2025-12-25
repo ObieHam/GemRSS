@@ -92,25 +92,13 @@ const saveSettings = (settings) => {
 
 // Validate if a word is likely a real English word
 const isValidWord = (word) => {
-  // Filter out all-caps (unless it's a short acronym that might be a word)
   if (word === word.toUpperCase() && word.length > 3) return false;
-  
-  // Filter out words with numbers
   if (/\d/.test(word)) return false;
-  
-  // Filter out words with unusual characters or too many consonants in a row
   if (!/^[a-z]+$/i.test(word)) return false;
-  
-  // Filter out likely malformed words (more than 4 consonants in a row)
   if (/[bcdfghjklmnpqrstvwxyz]{5,}/i.test(word)) return false;
-  
-  // Filter out very short or very long words
   if (word.length < 4 || word.length > 20) return false;
-  
-  // Filter out common PDF metadata terms
   const pdfTerms = ['tounicode', 'descendantfonts', 'cmap', 'basefont', 'subtype', 'encoding'];
   if (pdfTerms.includes(word.toLowerCase())) return false;
-  
   return true;
 };
 
@@ -130,7 +118,7 @@ const fetchFromFreeDictionary = async (word) => {
     const entry = data[0];
     
     const result = {
-      baseWord: entry.word.toLowerCase(),
+      word: entry.word.toLowerCase(), // Updated from baseWord to word
       definition: entry.meanings[0]?.definitions[0]?.definition || 'No definition found',
       example: entry.meanings[0]?.definitions[0]?.example || null,
       phonetics: entry.phonetics || [],
@@ -172,7 +160,7 @@ const fetchFromMerriamWebster = async (word, apiKey) => {
       }
 
       const result = {
-        baseWord: data[0].hwi?.hw?.replace(/\*/g, "").toLowerCase() || word.toLowerCase(),
+        word: data[0].hwi?.hw?.replace(/\*/g, "").toLowerCase() || word.toLowerCase(), // Updated from baseWord to word
         definition: data[0].shortdef?.[0] || "No definition found",
         audioUrl: audioUrl,
         example: null,
@@ -476,7 +464,6 @@ function ParseView({ loadWords, settings }) {
     const total = allTokens.length;
     setStatus({ loading: true, msg: 'Processing words...', progress: 0, total });
 
-    // Batch process 10 words at a time
     const batchSize = 10;
     for (let i = 0; i < allTokens.length; i += batchSize) {
       const batch = allTokens.slice(i, i + batchSize);
@@ -485,13 +472,13 @@ function ParseView({ loadWords, settings }) {
           try {
             const info = await fetchDefinition(word, settings);
             if (!info.error) {
-              const baseExists = existingWords.find(w => w.word === info.baseWord);
+              const baseExists = existingWords.find(w => w.word === info.word); // Match word property
               if (!baseExists) {
                 await db.vocabulary.add({
                   ...info,
                   context: context
                 });
-                existingWords.push({ word: info.baseWord });
+                existingWords.push({ word: info.word });
               }
             }
           } catch (e) {
@@ -588,20 +575,19 @@ function BrowseView({ words, loadWords, settings }) {
   const [search, setSearch] = useState("");
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
-  const playAudio = (word) => {
+  const playAudio = (wordObj) => {
     if (settings.apiSource === 'free-dictionary') {
-      // Get the preferred accent audio
       const accentMap = { us: '-us', uk: '-uk', au: '-au' };
-      const preferredAudio = word.phonetics?.find(p => 
+      const preferredAudio = wordObj.phonetics?.find(p => 
         p.audio && p.audio.includes(accentMap[settings.accent])
       );
-      const audioUrl = preferredAudio?.audio || word.phonetics?.find(p => p.audio)?.audio;
+      const audioUrl = preferredAudio?.audio || wordObj.phonetics?.find(p => p.audio)?.audio;
       
       if (audioUrl) {
         new Audio(audioUrl).play().catch(e => console.error("Audio play failed", e));
       }
-    } else if (word.audioUrl) {
-      new Audio(word.audioUrl).play().catch(e => console.error("Audio play failed", e));
+    } else if (wordObj.audioUrl) {
+      new Audio(wordObj.audioUrl).play().catch(e => console.error("Audio play failed", e));
     }
   };
 
@@ -612,7 +598,6 @@ function BrowseView({ words, loadWords, settings }) {
 
   const clearAll = async () => {
     await db.vocabulary.clear();
-    // Clear all cached definitions
     if (typeof window !== 'undefined') {
       Object.keys(localStorage).forEach(key => {
         if (key.startsWith('dict_')) {
@@ -692,7 +677,7 @@ function BrowseView({ words, loadWords, settings }) {
 
       {showClearConfirm && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border-2 border-red-500/30 rounded-3xl p-8 max-w-md w-full">
+          <div className="bg-slate-900 border-2 border-red-500/30 rounded-3xl p-8 max-md w-full">
             <div className="flex items-center gap-4 mb-6">
               <div className="p-3 bg-red-500/20 rounded-xl">
                 <AlertTriangle size={32} className="text-red-400" />
@@ -780,7 +765,6 @@ function ReaderView({ settings, loadWords, words }) {
       const lowerToken = token.toLowerCase();
       if (COMMON_WORDS.has(lowerToken)) continue;
       
-      // Allow all-caps words when clicked in reader, but validate them
       if (isValidWord(lowerToken) || token === token.toUpperCase()) {
         const exists = allWords.find(w => w.word === lowerToken);
         if (!exists && !newWords.includes(token)) {
@@ -802,9 +786,8 @@ function ReaderView({ settings, loadWords, words }) {
   const handleWordClick = async (word) => {
     const lowerWord = word.toLowerCase();
     
-    // Final validation check for clicked word
     if (!isValidWord(lowerWord) && word !== word.toUpperCase()) {
-      return; // Ignore obviously invalid words
+      return;
     }
     
     setSelectedWord(lowerWord);
@@ -820,28 +803,10 @@ function ReaderView({ settings, loadWords, words }) {
       
       setDefinitionPanel(info);
 
-      // Pre-load audio
-      if (settings.apiSource === 'free-dictionary' && info.phonetics) {
-        const accentMap = { us: '-us', uk: '-uk', au: '-au' };
-        const preferredAudio = info.phonetics.find(p =>
-          p.audio && p.audio.includes(accentMap[settings.accent])
-        );
-        const audioUrl = preferredAudio?.audio || info.phonetics.find(p => p.audio)?.audio;
-        if (audioUrl) {
-          // Preload the audio
-          const audio = new Audio(audioUrl);
-          audio.load();
-        }
-      } else if (info.audioUrl) {
-        // Preload Merriam-Webster audio
-        const audio = new Audio(info.audioUrl);
-        audio.load();
-      }
-
       if (settings.autoSave) {
         await db.vocabulary.add(info);
         await loadWords();
-        setHighlightedWords(prev => prev.filter(w => w.toLowerCase() !== info.baseWord));
+        setHighlightedWords(prev => prev.filter(w => w.toLowerCase() !== info.word));
       }
     } catch (error) {
       console.error('Error fetching definition:', error);
@@ -853,7 +818,7 @@ function ReaderView({ settings, loadWords, words }) {
     if (definitionPanel && !definitionPanel.loading && !definitionPanel.error) {
       await db.vocabulary.add(definitionPanel);
       await loadWords();
-      setHighlightedWords(prev => prev.filter(w => w.toLowerCase() !== definitionPanel.baseWord));
+      setHighlightedWords(prev => prev.filter(w => w.toLowerCase() !== definitionPanel.word));
       setDefinitionPanel(null);
     }
   };
@@ -878,16 +843,12 @@ function ReaderView({ settings, loadWords, words }) {
 
   const renderText = () => {
     if (pdfPages.length === 0) return null;
-
     const currentText = pdfPages[currentPage - 1] || '';
-    
-    // Split into words while preserving spaces and punctuation
     const parts = currentText.split(/(\s+|[.,!?;:()"])/);
     
     return (
       <div className="text-slate-200 leading-relaxed text-lg">
         {parts.map((part, idx) => {
-          // Check if this part is a highlighted word
           if (highlightedWords.includes(part)) {
             return (
               <mark
@@ -964,7 +925,7 @@ function ReaderView({ settings, loadWords, words }) {
         <div className="w-96 bg-slate-950 border-l-2 border-slate-800 p-8 overflow-y-auto flex flex-col">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-2xl font-black text-white capitalize">
-              {definitionPanel.loading ? 'Loading...' : definitionPanel.baseWord || selectedWord}
+              {definitionPanel.loading ? 'Loading...' : definitionPanel.word || selectedWord}
             </h3>
             <button onClick={() => setDefinitionPanel(null)} className="p-2 hover:bg-slate-800 rounded-xl transition-colors">
               <X size={20} />
