@@ -224,8 +224,8 @@ export default function LexiBuildApp() {
       <div className="bg-slate-900 border-2 border-slate-700 rounded-3xl p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-3xl font-black text-white">Settings</h2>
-          <button onClick={() => setShowSettings(false)} className="p-2 hover:bg-slate-800 rounded-xl transition-colors">
-            <X size={24} />
+          <button onClick={() => setShowSettings(false)} className="p-2 bg-slate-800 hover:bg-slate-700 rounded-xl transition-colors">
+            <X size={24} className="text-white" />
           </button>
         </div>
 
@@ -256,26 +256,11 @@ export default function LexiBuildApp() {
                 />
                 <div>
                   <div className="text-white font-bold">Merriam-Webster API</div>
-                  <div className="text-slate-400 text-sm">Premium definitions (1000/day limit)</div>
+                  <div className="text-slate-400 text-sm">Premium definitions (requires setup)</div>
                 </div>
               </label>
             </div>
           </div>
-
-          {settings.apiSource === 'merriam-webster' && (
-            <div>
-              <label className="block text-slate-400 text-sm font-bold uppercase tracking-wider mb-3">
-                Merriam-Webster API Key
-              </label>
-              <input
-                type="text"
-                value={settings.mwApiKey}
-                onChange={(e) => updateSettings({ ...settings, mwApiKey: e.target.value })}
-                placeholder="Enter your API key"
-                className="w-full bg-slate-800 border-2 border-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-500 outline-none focus:border-indigo-500"
-              />
-            </div>
-          )}
 
           {settings.apiSource === 'free-dictionary' && (
             <div>
@@ -473,6 +458,7 @@ function ParseView({ loadWords, settings }) {
   const processContent = async (text) => {
     const sentences = text.replace(/\n/g, " ").match(/[^.!?]+[.!?]+/g) || [text];
     const allTokens = [];
+    const existingWords = await db.vocabulary.toArray();
 
     for (const sentence of sentences) {
       const tokens = sentence.toLowerCase().match(/\b[a-z]{4,}\b/g);
@@ -480,7 +466,7 @@ function ParseView({ loadWords, settings }) {
 
       for (const token of tokens) {
         if (COMMON_WORDS.has(token) || !isValidWord(token)) continue;
-        const exists = await db.vocabulary.where('word').equals(token).first();
+        const exists = existingWords.find(w => w.word === token);
         if (!exists && !allTokens.find(t => t.word === token)) {
           allTokens.push({ word: token, context: sentence.trim() });
         }
@@ -499,12 +485,13 @@ function ParseView({ loadWords, settings }) {
           try {
             const info = await fetchDefinition(word, settings);
             if (!info.error) {
-              const baseExists = await db.vocabulary.where('word').equals(info.baseWord).first();
+              const baseExists = existingWords.find(w => w.word === info.baseWord);
               if (!baseExists) {
                 await db.vocabulary.add({
                   ...info,
                   context: context
                 });
+                existingWords.push({ word: info.baseWord });
               }
             }
           } catch (e) {
@@ -787,6 +774,7 @@ function ReaderView({ settings, loadWords, words }) {
   const analyzePageWords = async (pageText) => {
     const tokens = pageText.match(/\b[a-zA-Z]{4,}\b/g) || [];
     const newWords = [];
+    const allWords = await db.vocabulary.toArray();
 
     for (const token of tokens) {
       const lowerToken = token.toLowerCase();
@@ -794,7 +782,7 @@ function ReaderView({ settings, loadWords, words }) {
       
       // Allow all-caps words when clicked in reader, but validate them
       if (isValidWord(lowerToken) || token === token.toUpperCase()) {
-        const exists = words.find(w => w.word === lowerToken);
+        const exists = allWords.find(w => w.word === lowerToken);
         if (!exists && !newWords.includes(token)) {
           newWords.push(token);
         }
@@ -831,6 +819,24 @@ function ReaderView({ settings, loadWords, words }) {
       }
       
       setDefinitionPanel(info);
+
+      // Pre-load audio
+      if (settings.apiSource === 'free-dictionary' && info.phonetics) {
+        const accentMap = { us: '-us', uk: '-uk', au: '-au' };
+        const preferredAudio = info.phonetics.find(p =>
+          p.audio && p.audio.includes(accentMap[settings.accent])
+        );
+        const audioUrl = preferredAudio?.audio || info.phonetics.find(p => p.audio)?.audio;
+        if (audioUrl) {
+          // Preload the audio
+          const audio = new Audio(audioUrl);
+          audio.load();
+        }
+      } else if (info.audioUrl) {
+        // Preload Merriam-Webster audio
+        const audio = new Audio(info.audioUrl);
+        audio.load();
+      }
 
       if (settings.autoSave) {
         await db.vocabulary.add(info);
