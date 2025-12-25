@@ -31,7 +31,7 @@ export default function ParseView({ loadWords, settings }) {
     const total = allTokens.length;
     setStatus({ loading: true, msg: 'Processing words...', progress: 0, total });
 
-    const batchSize = 10;
+    const batchSize = 4; // Changed from 10 to 4
     for (let i = 0; i < allTokens.length; i += batchSize) {
       const batch = allTokens.slice(i, i + batchSize);
       await Promise.all(
@@ -54,6 +54,11 @@ export default function ParseView({ loadWords, settings }) {
         })
       );
       setStatus({ loading: true, msg: 'Processing words...', progress: Math.min(i + batchSize, total), total });
+      
+      // Add 500ms delay between batches
+      if (i + batchSize < allTokens.length) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
     }
 
     await loadWords();
