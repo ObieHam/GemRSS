@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect, useRef } from 'react';
-import { Upload, Search, BookOpen, Loader2, Trash2, Volume2, Plus, Menu, X, Settings, ChevronLeft, ChevronRight, FileText, List } from 'lucide-react';
+import { Upload, Search, BookOpen, Loader2, Trash2, Volume2, Plus, Menu, X, Settings, ChevronLeft, ChevronRight, FileText, List, AlertTriangle } from 'lucide-react';
 import * as pdfjsLib from 'pdfjs-dist';
 
 // Set up PDF.js worker
@@ -8,25 +8,52 @@ if (typeof window !== 'undefined') {
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs';
 }
 
-// Mock database (replace with your Dexie implementation)
-const mockDB = {
+// Top 300 most common English words to ignore
+const COMMON_WORDS = new Set([
+  "the", "be", "to", "of", "and", "a", "in", "that", "have", "i", "it", "for", "not", "on", "with", "he", "as", "you", "do", "at",
+  "this", "but", "his", "by", "from", "they", "we", "say", "her", "she", "or", "an", "will", "my", "one", "all", "would", "there", "their", "what",
+  "so", "up", "out", "if", "about", "who", "get", "which", "go", "me", "when", "make", "can", "like", "time", "no", "just", "him", "know", "take",
+  "people", "into", "year", "your", "good", "some", "could", "them", "see", "other", "than", "then", "now", "look", "only", "come", "its", "over", "think", "also",
+  "back", "after", "use", "two", "how", "our", "work", "first", "well", "way", "even", "new", "want", "because", "any", "these", "give", "day", "most", "us",
+  "is", "was", "are", "been", "has", "had", "were", "said", "did", "having", "may", "should", "could", "being", "does", "did", "might", "must", "shall", "can",
+  "tell", "does", "set", "each", "why", "ask", "men", "change", "went", "light", "kind", "off", "need", "house", "picture", "try", "us", "again", "animal", "point",
+  "mother", "world", "near", "build", "self", "earth", "father", "head", "stand", "own", "page", "should", "country", "found", "answer", "school", "grow", "study", "still", "learn",
+  "plant", "cover", "food", "sun", "four", "between", "state", "keep", "eye", "never", "last", "let", "thought", "city", "tree", "cross", "farm", "hard", "start", "might",
+  "story", "saw", "far", "sea", "draw", "left", "late", "run", "don", "while", "press", "close", "night", "real", "life", "few", "north", "open", "seem", "together",
+  "next", "white", "children", "begin", "got", "walk", "example", "ease", "paper", "group", "always", "music", "those", "both", "mark", "often", "letter", "until", "mile", "river",
+  "car", "feet", "care", "second", "book", "carry", "took", "science", "eat", "room", "friend", "began", "idea", "fish", "mountain", "stop", "once", "base", "hear", "horse",
+  "cut", "sure", "watch", "color", "face", "wood", "main", "enough", "plain", "girl", "usual", "young", "ready", "above", "ever", "red", "list", "though", "feel", "talk",
+  "bird", "soon", "body", "dog", "family", "direct", "pose", "leave", "song", "measure", "door", "product", "black", "short", "numeral", "class", "wind", "question", "happen", "complete",
+  "ship", "area", "half", "rock", "order", "fire", "south", "problem", "piece", "told", "knew", "pass", "since", "top", "whole", "king", "space", "heard", "best", "hour",
+  "better", "true", "during", "hundred", "five", "remember", "step", "early", "hold", "west", "ground", "interest", "reach", "fast", "verb", "sing", "listen", "six", "table", "travel"
+]);
+
+// Database operations using localStorage
+const db = {
   vocabulary: {
-    toArray: async () => JSON.parse(localStorage.getItem('vocabWords') || '[]'),
+    toArray: async () => {
+      const words = localStorage.getItem('vocabWords');
+      return words ? JSON.parse(words) : [];
+    },
     add: async (word) => {
-      const words = JSON.parse(localStorage.getItem('vocabWords') || '[]');
-      const newWord = { ...word, id: Date.now() };
+      const words = await db.vocabulary.toArray();
+      const newWord = { ...word, id: Date.now() + Math.random() };
       words.push(newWord);
       localStorage.setItem('vocabWords', JSON.stringify(words));
       return newWord;
     },
     delete: async (id) => {
-      const words = JSON.parse(localStorage.getItem('vocabWords') || '[]');
-      localStorage.setItem('vocabWords', JSON.stringify(words.filter(w => w.id !== id)));
+      const words = await db.vocabulary.toArray();
+      const filtered = words.filter(w => w.id !== id);
+      localStorage.setItem('vocabWords', JSON.stringify(filtered));
+    },
+    clear: async () => {
+      localStorage.setItem('vocabWords', JSON.stringify([]));
     },
     where: (field) => ({
       equals: (value) => ({
         first: async () => {
-          const words = JSON.parse(localStorage.getItem('vocabWords') || '[]');
+          const words = await db.vocabulary.toArray();
           return words.find(w => w[field] === value);
         }
       })
@@ -34,34 +61,246 @@ const mockDB = {
   }
 };
 
-const STOP_WORDS = new Set(["the", "and", "was", "for", "that", "with", "this", "are", "have", "from", "but", "not", "you", "all", "any", "can", "had", "her", "him", "his", "its", "one", "our", "out", "she", "there", "their", "they", "will", "would"]);
-
-// Mock API call (replace with your actual API)
-const fetchDefinition = async (word) => {
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 200));
-  return {
-    baseWord: word.toLowerCase(),
-    definition: `Definition of ${word} - a sample definition for demonstration purposes.`,
-    audioUrl: null,
-    dateAdded: Date.now()
+// Settings management
+const getSettings = () => {
+  const settings = localStorage.getItem('appSettings');
+  return settings ? JSON.parse(settings) : {
+    apiSource: 'free-dictionary', // 'free-dictionary' or 'merriam-webster'
+    accent: 'us', // 'us', 'uk', 'au'
+    autoSave: false,
+    mwApiKey: ''
   };
 };
 
+const saveSettings = (settings) => {
+  localStorage.setItem('appSettings', JSON.stringify(settings));
+};
+
+// Validate if a word is likely a real English word
+const isValidWord = (word) => {
+  // Filter out all-caps (unless it's a short acronym that might be a word)
+  if (word === word.toUpperCase() && word.length > 3) return false;
+  
+  // Filter out words with numbers
+  if (/\d/.test(word)) return false;
+  
+  // Filter out words with unusual characters or too many consonants in a row
+  if (!/^[a-z]+$/i.test(word)) return false;
+  
+  // Filter out likely malformed words (more than 4 consonants in a row)
+  if (/[bcdfghjklmnpqrstvwxyz]{5,}/i.test(word)) return false;
+  
+  // Filter out very short or very long words
+  if (word.length < 4 || word.length > 20) return false;
+  
+  // Filter out common PDF metadata terms
+  const pdfTerms = ['tounicode', 'descendantfonts', 'cmap', 'basefont', 'subtype', 'encoding'];
+  if (pdfTerms.includes(word.toLowerCase())) return false;
+  
+  return true;
+};
+
+// API call functions with caching
+const fetchFromFreeDictionary = async (word) => {
+  const cacheKey = `dict_free_${word}`;
+  const cached = localStorage.getItem(cacheKey);
+  if (cached) return JSON.parse(cached);
+
+  try {
+    const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${word}`);
+    if (!res.ok) throw new Error('Word not found');
+    
+    const data = await res.json();
+    const entry = data[0];
+    
+    const result = {
+      baseWord: entry.word.toLowerCase(),
+      definition: entry.meanings[0]?.definitions[0]?.definition || 'No definition found',
+      example: entry.meanings[0]?.definitions[0]?.example || null,
+      phonetics: entry.phonetics || [],
+      dateAdded: Date.now()
+    };
+    
+    localStorage.setItem(cacheKey, JSON.stringify(result));
+    return result;
+  } catch (error) {
+    return { error: 'Word not found' };
+  }
+};
+
+const fetchFromMerriamWebster = async (word, apiKey) => {
+  const cacheKey = `dict_mw_${word}`;
+  const cached = localStorage.getItem(cacheKey);
+  if (cached) return JSON.parse(cached);
+
+  if (!apiKey) return { error: 'API key required' };
+
+  try {
+    const res = await fetch(`https://www.dictionaryapi.com/api/v3/references/collegiate/json/${word}?key=${apiKey}`);
+    const data = await res.json();
+
+    if (data && data[0] && typeof data[0] === 'object') {
+      const audioFile = data[0].hwi?.prs?.[0]?.sound?.audio;
+      let audioUrl = null;
+
+      if (audioFile) {
+        let subdirectory = audioFile.charAt(0);
+        if (audioFile.startsWith("bix")) subdirectory = "bix";
+        else if (audioFile.startsWith("gg")) subdirectory = "gg";
+        else if (/^\d/.test(subdirectory)) subdirectory = "number";
+        audioUrl = `https://media.merriam-webster.com/audio/prons/en/us/mp3/${subdirectory}/${audioFile}.mp3`;
+      }
+
+      const result = {
+        baseWord: data[0].hwi?.hw?.replace(/\*/g, "").toLowerCase() || word.toLowerCase(),
+        definition: data[0].shortdef?.[0] || "No definition found",
+        audioUrl: audioUrl,
+        example: null,
+        dateAdded: Date.now()
+      };
+      
+      localStorage.setItem(cacheKey, JSON.stringify(result));
+      return result;
+    }
+    return { error: 'Word not found' };
+  } catch (error) {
+    return { error: 'API Error' };
+  }
+};
+
+const fetchDefinition = async (word, settings) => {
+  if (settings.apiSource === 'free-dictionary') {
+    return await fetchFromFreeDictionary(word);
+  } else {
+    return await fetchFromMerriamWebster(word, settings.mwApiKey);
+  }
+};
+
 export default function LexiBuildApp() {
-  const [view, setView] = useState('home'); // 'home', 'parse', 'browse', 'reader'
+  const [view, setView] = useState('home');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [words, setWords] = useState([]);
-  const [autoSave, setAutoSave] = useState(false);
+  const [settings, setSettings] = useState(getSettings());
+  const [showSettings, setShowSettings] = useState(false);
 
   useEffect(() => {
     loadWords();
   }, []);
 
   const loadWords = async () => {
-    const all = await mockDB.vocabulary.toArray();
+    const all = await db.vocabulary.toArray();
     setWords(all.sort((a, b) => b.dateAdded - a.dateAdded));
   };
+
+  const updateSettings = (newSettings) => {
+    setSettings(newSettings);
+    saveSettings(newSettings);
+  };
+
+  const SettingsPanel = () => (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-slate-900 border-2 border-slate-700 rounded-3xl p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-3xl font-black text-white">Settings</h2>
+          <button onClick={() => setShowSettings(false)} className="p-2 hover:bg-slate-800 rounded-xl transition-colors">
+            <X size={24} />
+          </button>
+        </div>
+
+        <div className="space-y-6">
+          <div>
+            <label className="block text-slate-400 text-sm font-bold uppercase tracking-wider mb-3">Dictionary API Source</label>
+            <div className="space-y-3">
+              <label className="flex items-center gap-3 p-4 bg-slate-800 rounded-xl cursor-pointer hover:bg-slate-750 transition-colors">
+                <input
+                  type="radio"
+                  name="apiSource"
+                  checked={settings.apiSource === 'free-dictionary'}
+                  onChange={() => updateSettings({ ...settings, apiSource: 'free-dictionary' })}
+                  className="w-5 h-5"
+                />
+                <div>
+                  <div className="text-white font-bold">Free Dictionary API</div>
+                  <div className="text-slate-400 text-sm">Unlimited calls, includes examples</div>
+                </div>
+              </label>
+              <label className="flex items-center gap-3 p-4 bg-slate-800 rounded-xl cursor-pointer hover:bg-slate-750 transition-colors">
+                <input
+                  type="radio"
+                  name="apiSource"
+                  checked={settings.apiSource === 'merriam-webster'}
+                  onChange={() => updateSettings({ ...settings, apiSource: 'merriam-webster' })}
+                  className="w-5 h-5"
+                />
+                <div>
+                  <div className="text-white font-bold">Merriam-Webster API</div>
+                  <div className="text-slate-400 text-sm">Premium definitions (1000/day limit)</div>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          {settings.apiSource === 'merriam-webster' && (
+            <div>
+              <label className="block text-slate-400 text-sm font-bold uppercase tracking-wider mb-3">
+                Merriam-Webster API Key
+              </label>
+              <input
+                type="text"
+                value={settings.mwApiKey}
+                onChange={(e) => updateSettings({ ...settings, mwApiKey: e.target.value })}
+                placeholder="Enter your API key"
+                className="w-full bg-slate-800 border-2 border-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-500 outline-none focus:border-indigo-500"
+              />
+            </div>
+          )}
+
+          {settings.apiSource === 'free-dictionary' && (
+            <div>
+              <label className="block text-slate-400 text-sm font-bold uppercase tracking-wider mb-3">Pronunciation Accent</label>
+              <div className="grid grid-cols-3 gap-3">
+                {[
+                  { value: 'us', label: 'American' },
+                  { value: 'uk', label: 'British' },
+                  { value: 'au', label: 'Australian' }
+                ].map(accent => (
+                  <button
+                    key={accent.value}
+                    onClick={() => updateSettings({ ...settings, accent: accent.value })}
+                    className={`p-4 rounded-xl font-bold transition-colors ${
+                      settings.accent === accent.value
+                        ? 'bg-indigo-500 text-white'
+                        : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                    }`}
+                  >
+                    {accent.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div>
+            <label className="flex items-center justify-between p-4 bg-slate-800 rounded-xl cursor-pointer">
+              <div>
+                <div className="text-white font-bold">Auto-save words in reader</div>
+                <div className="text-slate-400 text-sm">Automatically add words to library when clicked</div>
+              </div>
+              <div className={`w-14 h-8 rounded-full transition-colors ${settings.autoSave ? 'bg-indigo-500' : 'bg-slate-700'} relative`}>
+                <div className={`w-6 h-6 bg-white rounded-full absolute top-1 transition-transform ${settings.autoSave ? 'translate-x-7' : 'translate-x-1'}`}></div>
+              </div>
+              <input
+                type="checkbox"
+                className="hidden"
+                checked={settings.autoSave}
+                onChange={(e) => updateSettings({ ...settings, autoSave: e.target.checked })}
+              />
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 
   const MainMenu = () => (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100 flex items-center justify-center p-8">
@@ -107,22 +346,17 @@ export default function LexiBuildApp() {
           </button>
         </div>
 
-        <div className="mt-12 p-6 bg-slate-900 border-2 border-slate-700 rounded-3xl">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-slate-400 text-sm font-bold uppercase tracking-wider mb-1">Library Stats</p>
-              <p className="text-4xl font-black text-white">{words.length} <span className="text-xl text-slate-500">words</span></p>
-            </div>
-            <div className="flex items-center gap-4">
-              <label className="flex items-center gap-3 cursor-pointer group">
-                <span className="text-slate-400 text-sm font-medium">Auto-save words</span>
-                <div className={`w-14 h-8 rounded-full transition-colors ${autoSave ? 'bg-indigo-500' : 'bg-slate-700'} relative`}>
-                  <div className={`w-6 h-6 bg-white rounded-full absolute top-1 transition-transform ${autoSave ? 'translate-x-7' : 'translate-x-1'}`}></div>
-                </div>
-                <input type="checkbox" className="hidden" checked={autoSave} onChange={(e) => setAutoSave(e.target.checked)} />
-              </label>
-            </div>
+        <div className="mt-12 flex gap-6">
+          <div className="flex-grow p-6 bg-slate-900 border-2 border-slate-700 rounded-3xl">
+            <p className="text-slate-400 text-sm font-bold uppercase tracking-wider mb-1">Library Stats</p>
+            <p className="text-4xl font-black text-white">{words.length} <span className="text-xl text-slate-500">words</span></p>
           </div>
+          <button
+            onClick={() => setShowSettings(true)}
+            className="p-6 bg-slate-900 hover:bg-slate-800 border-2 border-slate-700 hover:border-indigo-500 rounded-3xl transition-all"
+          >
+            <Settings size={32} className="text-slate-400" />
+          </button>
         </div>
       </div>
     </div>
@@ -174,28 +408,43 @@ export default function LexiBuildApp() {
             <FileText size={20} />
             {sidebarOpen && <span className="font-bold">Reader</span>}
           </button>
+          <button
+            onClick={() => setShowSettings(true)}
+            className="w-full flex items-center gap-4 p-4 rounded-xl hover:bg-slate-800 text-slate-400 transition-colors"
+          >
+            <Settings size={20} />
+            {sidebarOpen && <span className="font-bold">Settings</span>}
+          </button>
         </nav>
       </div>
     </div>
   );
 
   if (view === 'home') {
-    return <MainMenu />;
+    return (
+      <>
+        <MainMenu />
+        {showSettings && <SettingsPanel />}
+      </>
+    );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100">
-      <Sidebar />
-      <div className={`transition-all duration-300 ${sidebarOpen ? 'ml-72' : 'ml-20'}`}>
-        {view === 'parse' && <ParseView loadWords={loadWords} />}
-        {view === 'browse' && <BrowseView words={words} loadWords={loadWords} />}
-        {view === 'reader' && <ReaderView autoSave={autoSave} loadWords={loadWords} words={words} />}
+    <>
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100">
+        <Sidebar />
+        <div className={`transition-all duration-300 ${sidebarOpen ? 'ml-72' : 'ml-20'}`}>
+          {view === 'parse' && <ParseView loadWords={loadWords} settings={settings} />}
+          {view === 'browse' && <BrowseView words={words} loadWords={loadWords} settings={settings} />}
+          {view === 'reader' && <ReaderView settings={settings} loadWords={loadWords} words={words} />}
+        </div>
       </div>
-    </div>
+      {showSettings && <SettingsPanel />}
+    </>
   );
 }
 
-function ParseView({ loadWords }) {
+function ParseView({ loadWords, settings }) {
   const [status, setStatus] = useState({ loading: false, msg: '', progress: 0, total: 0 });
   const fileInputRef = useRef(null);
 
@@ -205,14 +454,13 @@ function ParseView({ loadWords }) {
 
     for (const sentence of sentences) {
       const tokens = sentence.toLowerCase().match(/\b[a-z]{4,}\b/g);
-      if (tokens) {
-        for (const token of tokens) {
-          if (!STOP_WORDS.has(token)) {
-            const exists = await mockDB.vocabulary.where('word').equals(token).first();
-            if (!exists) {
-              allTokens.push({ word: token, context: sentence.trim() });
-            }
-          }
+      if (!tokens) continue;
+
+      for (const token of tokens) {
+        if (COMMON_WORDS.has(token) || !isValidWord(token)) continue;
+        const exists = await db.vocabulary.where('word').equals(token).first();
+        if (!exists && !allTokens.find(t => t.word === token)) {
+          allTokens.push({ word: token, context: sentence.trim() });
         }
       }
     }
@@ -227,23 +475,22 @@ function ParseView({ loadWords }) {
       await Promise.all(
         batch.map(async ({ word, context }) => {
           try {
-            const info = await fetchDefinition(word);
-            const baseExists = await mockDB.vocabulary.where('word').equals(info.baseWord).first();
-            if (!baseExists && !info.error) {
-              await mockDB.vocabulary.add({
-                word: info.baseWord,
-                definition: info.definition,
-                audioUrl: info.audioUrl,
-                context: context,
-                dateAdded: Date.now()
-              });
+            const info = await fetchDefinition(word, settings);
+            if (!info.error) {
+              const baseExists = await db.vocabulary.where('word').equals(info.baseWord).first();
+              if (!baseExists) {
+                await db.vocabulary.add({
+                  ...info,
+                  context: context
+                });
+              }
             }
           } catch (e) {
             console.error("Definition fetch error", e);
           }
         })
       );
-      setStatus({ loading: true, msg: 'Processing words...', progress: i + batch.length, total });
+      setStatus({ loading: true, msg: 'Processing words...', progress: Math.min(i + batchSize, total), total });
     }
 
     await loadWords();
@@ -255,9 +502,21 @@ function ParseView({ loadWords }) {
     const file = e.target.files[0];
     if (!file) return;
     setStatus({ loading: true, msg: 'Reading file...', progress: 0, total: 0 });
-    
+
     try {
-      const text = await file.text();
+      let text = "";
+      if (file.type === "application/pdf") {
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const content = await page.getTextContent();
+          text += content.items.map(item => item.str).join(" ") + " ";
+        }
+      } else {
+        text = await file.text();
+      }
       await processContent(text);
     } catch (err) {
       console.error(err);
@@ -316,16 +575,42 @@ function ParseView({ loadWords }) {
   );
 }
 
-function BrowseView({ words, loadWords }) {
+function BrowseView({ words, loadWords, settings }) {
   const [search, setSearch] = useState("");
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
 
-  const playAudio = (url) => {
-    if (url) new Audio(url).play().catch(e => console.error("Audio play failed", e));
+  const playAudio = (word) => {
+    if (settings.apiSource === 'free-dictionary') {
+      // Get the preferred accent audio
+      const accentMap = { us: '-us', uk: '-uk', au: '-au' };
+      const preferredAudio = word.phonetics?.find(p => 
+        p.audio && p.audio.includes(accentMap[settings.accent])
+      );
+      const audioUrl = preferredAudio?.audio || word.phonetics?.find(p => p.audio)?.audio;
+      
+      if (audioUrl) {
+        new Audio(audioUrl).play().catch(e => console.error("Audio play failed", e));
+      }
+    } else if (word.audioUrl) {
+      new Audio(word.audioUrl).play().catch(e => console.error("Audio play failed", e));
+    }
   };
 
   const deleteWord = async (id) => {
-    await mockDB.vocabulary.delete(id);
+    await db.vocabulary.delete(id);
     await loadWords();
+  };
+
+  const clearAll = async () => {
+    await db.vocabulary.clear();
+    // Clear all cached definitions
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith('dict_')) {
+        localStorage.removeItem(key);
+      }
+    });
+    await loadWords();
+    setShowClearConfirm(false);
   };
 
   const filtered = words.filter(w => w.word && w.word.toLowerCase().includes(search.toLowerCase()));
@@ -333,7 +618,16 @@ function BrowseView({ words, loadWords }) {
   return (
     <div className="p-12">
       <div className="max-w-5xl mx-auto">
-        <h2 className="text-5xl font-black mb-8 text-white">Word Library</h2>
+        <div className="flex items-center justify-between mb-8">
+          <h2 className="text-5xl font-black text-white">Word Library</h2>
+          <button
+            onClick={() => setShowClearConfirm(true)}
+            className="flex items-center gap-3 px-6 py-3 bg-red-500/10 hover:bg-red-500/20 border-2 border-red-500/30 hover:border-red-500 rounded-2xl font-bold text-red-400 transition-all"
+          >
+            <Trash2 size={20} />
+            Clear All
+          </button>
+        </div>
         
         <div className="relative mb-8">
           <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-500" size={24} />
@@ -356,12 +650,16 @@ function BrowseView({ words, loadWords }) {
                 <div key={w.id} className="p-6 hover:bg-slate-800/50 transition-colors flex items-center justify-between group">
                   <div className="flex-grow">
                     <h3 className="text-2xl font-bold text-white capitalize mb-1">{w.word}</h3>
-                    <p className="text-slate-400 text-sm">{w.definition}</p>
+                    <p className="text-slate-400 text-sm line-clamp-2">{w.definition}</p>
+                    {w.example && (
+                      <p className="text-slate-500 text-sm italic mt-2">"{w.example}"</p>
+                    )}
                   </div>
                   <div className="flex items-center gap-3">
-                    {w.audioUrl && (
+                    {((settings.apiSource === 'free-dictionary' && w.phonetics?.length > 0) || 
+                      (settings.apiSource === 'merriam-webster' && w.audioUrl)) && (
                       <button
-                        onClick={() => playAudio(w.audioUrl)}
+                        onClick={() => playAudio(w)}
                         className="p-3 bg-slate-800 hover:bg-indigo-500 rounded-xl transition-colors"
                       >
                         <Volume2 size={20} />
@@ -380,11 +678,41 @@ function BrowseView({ words, loadWords }) {
           )}
         </div>
       </div>
+
+      {showClearConfirm && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border-2 border-red-500/30 rounded-3xl p-8 max-w-md w-full">
+            <div className="flex items-center gap-4 mb-6">
+              <div className="p-3 bg-red-500/20 rounded-xl">
+                <AlertTriangle size={32} className="text-red-400" />
+              </div>
+              <h3 className="text-2xl font-black text-white">Clear All Words?</h3>
+            </div>
+            <p className="text-slate-400 mb-8">
+              This will permanently delete all {words.length} words from your library and clear all cached data. This action cannot be undone.
+            </p>
+            <div className="flex gap-4">
+              <button
+                onClick={() => setShowClearConfirm(false)}
+                className="flex-1 px-6 py-3 bg-slate-800 hover:bg-slate-700 rounded-xl font-bold transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={clearAll}
+                className="flex-1 px-6 py-3 bg-red-500 hover:bg-red-600 rounded-xl font-bold transition-colors"
+              >
+                Delete All
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function ReaderView({ autoSave, loadWords, words }) {
+function ReaderView({ settings, loadWords, words }) {
   const [pdfPages, setPdfPages] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
@@ -404,20 +732,19 @@ function ReaderView({ autoSave, loadWords, words }) {
         const arrayBuffer = await file.arrayBuffer();
         const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
         const pages = [];
-        
+
         for (let i = 1; i <= pdf.numPages; i++) {
           const page = await pdf.getPage(i);
           const textContent = await page.getTextContent();
           const pageText = textContent.items.map(item => item.str).join(' ');
           pages.push(pageText);
         }
-        
+
         setPdfPages(pages);
         setTotalPages(pages.length);
         setCurrentPage(1);
         analyzePageWords(pages[0]);
       } else {
-        // Handle text files
         const text = await file.text();
         const pages = text.split('\n\n\n');
         setPdfPages(pages);
@@ -434,12 +761,16 @@ function ReaderView({ autoSave, loadWords, words }) {
   };
 
   const analyzePageWords = async (pageText) => {
-    const tokens = pageText.toLowerCase().match(/\b[a-z]{4,}\b/g) || [];
+    const tokens = pageText.match(/\b[a-zA-Z]{4,}\b/g) || [];
     const newWords = [];
 
     for (const token of tokens) {
-      if (!STOP_WORDS.has(token)) {
-        const exists = words.find(w => w.word === token);
+      const lowerToken = token.toLowerCase();
+      if (COMMON_WORDS.has(lowerToken)) continue;
+      
+      // Allow all-caps words when clicked in reader, but validate them
+      if (isValidWord(lowerToken) || token === token.toUpperCase()) {
+        const exists = words.find(w => w.word === lowerToken);
         if (!exists && !newWords.includes(token)) {
           newWords.push(token);
         }
@@ -452,20 +783,35 @@ function ReaderView({ autoSave, loadWords, words }) {
   useEffect(() => {
     if (pdfPages.length > 0 && currentPage > 0) {
       analyzePageWords(pdfPages[currentPage - 1]);
+      setDefinitionPanel(null);
     }
   }, [currentPage, pdfPages, words]);
 
   const handleWordClick = async (word) => {
-    setSelectedWord(word);
+    const lowerWord = word.toLowerCase();
+    
+    // Final validation check for clicked word
+    if (!isValidWord(lowerWord) && word !== word.toUpperCase()) {
+      return; // Ignore obviously invalid words
+    }
+    
+    setSelectedWord(lowerWord);
     setDefinitionPanel({ loading: true });
+    
     try {
-      const info = await fetchDefinition(word);
-      setDefinitionPanel(info);
+      const info = await fetchDefinition(lowerWord, settings);
       
-      if (autoSave) {
-        await mockDB.vocabulary.add(info);
+      if (info.error) {
+        setDefinitionPanel({ error: info.error });
+        return;
+      }
+      
+      setDefinitionPanel(info);
+
+      if (settings.autoSave) {
+        await db.vocabulary.add(info);
         await loadWords();
-        setHighlightedWords(prev => prev.filter(w => w !== info.baseWord));
+        setHighlightedWords(prev => prev.filter(w => w.toLowerCase() !== info.baseWord));
       }
     } catch (error) {
       console.error('Error fetching definition:', error);
@@ -474,36 +820,58 @@ function ReaderView({ autoSave, loadWords, words }) {
   };
 
   const addToLibrary = async () => {
-    if (definitionPanel) {
-      await mockDB.vocabulary.add(definitionPanel);
+    if (definitionPanel && !definitionPanel.loading && !definitionPanel.error) {
+      await db.vocabulary.add(definitionPanel);
       await loadWords();
-      setHighlightedWords(prev => prev.filter(w => w !== definitionPanel.baseWord));
-      if (!autoSave) {
-        alert('Word added to library!');
+      setHighlightedWords(prev => prev.filter(w => w.toLowerCase() !== definitionPanel.baseWord));
+      setDefinitionPanel(null);
+    }
+  };
+
+  const playAudio = () => {
+    if (!definitionPanel) return;
+    
+    if (settings.apiSource === 'free-dictionary' && definitionPanel.phonetics) {
+      const accentMap = { us: '-us', uk: '-uk', au: '-au' };
+      const preferredAudio = definitionPanel.phonetics.find(p =>
+        p.audio && p.audio.includes(accentMap[settings.accent])
+      );
+      const audioUrl = preferredAudio?.audio || definitionPanel.phonetics.find(p => p.audio)?.audio;
+
+      if (audioUrl) {
+        new Audio(audioUrl).play().catch(e => console.error("Audio play failed", e));
       }
+    } else if (definitionPanel.audioUrl) {
+      new Audio(definitionPanel.audioUrl).play().catch(e => console.error("Audio play failed", e));
     }
   };
 
   const renderText = () => {
     if (pdfPages.length === 0) return null;
-    
-    const currentText = pdfPages[currentPage - 1] || '';
-    let rendered = currentText;
-    
-    highlightedWords.forEach(word => {
-      const regex = new RegExp(`\\b(${word})\\b`, 'gi');
-      rendered = rendered.replace(regex, `<mark class="bg-yellow-400/40 border-b-2 border-yellow-500 cursor-pointer hover:bg-yellow-400/60 transition-colors px-1" data-word="$1">$1</mark>`);
-    });
 
+    const currentText = pdfPages[currentPage - 1] || '';
+    
+    // Split into words while preserving spaces and punctuation
+    const parts = currentText.split(/(\s+|[.,!?;:()"])/);
+    
     return (
-      <div 
-        className="text-slate-200 leading-relaxed whitespace-pre-wrap" 
-        dangerouslySetInnerHTML={{ __html: rendered }}
-        onClick={(e) => {
-          const word = e.target.getAttribute('data-word');
-          if (word) handleWordClick(word.toLowerCase());
-        }}
-      />
+      <div className="text-slate-200 leading-relaxed text-lg">
+        {parts.map((part, idx) => {
+          // Check if this part is a highlighted word
+          if (highlightedWords.includes(part)) {
+            return (
+              <mark
+                key={idx}
+                className="bg-yellow-400/40 border-b-2 border-yellow-500 cursor-pointer hover:bg-yellow-400/60 transition-colors px-0.5"
+                onClick={() => handleWordClick(part)}
+              >
+                {part}
+              </mark>
+            );
+          }
+          return <span key={idx}>{part}</span>;
+        })}
+      </div>
     );
   };
 
@@ -539,21 +907,23 @@ function ReaderView({ autoSave, loadWords, words }) {
                 <button
                   onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
                   disabled={currentPage === 1}
-                  className="p-3 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 rounded-xl transition-colors"
+                  className="p-3 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed rounded-xl transition-colors"
                 >
                   <ChevronLeft size={20} />
                 </button>
-                <span className="text-slate-400 font-bold">Page {currentPage} of {totalPages}</span>
+                <span className="text-slate-400 font-bold min-w-[120px] text-center">
+                  Page {currentPage} of {totalPages}
+                </span>
                 <button
                   onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
                   disabled={currentPage === totalPages}
-                  className="p-3 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 rounded-xl transition-colors"
+                  className="p-3 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed rounded-xl transition-colors"
                 >
                   <ChevronRight size={20} />
                 </button>
               </div>
             </div>
-            <div className="bg-slate-900 border-2 border-slate-700 rounded-3xl p-12 text-slate-200 leading-relaxed min-h-[600px]">
+            <div className="bg-slate-900 border-2 border-slate-700 rounded-3xl p-12 min-h-[600px]">
               {renderText()}
             </div>
           </div>
@@ -561,7 +931,7 @@ function ReaderView({ autoSave, loadWords, words }) {
       </div>
 
       {definitionPanel && (
-        <div className="w-96 bg-slate-950 border-l-2 border-slate-800 p-8 overflow-y-auto">
+        <div className="w-96 bg-slate-950 border-l-2 border-slate-800 p-8 overflow-y-auto flex flex-col">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-2xl font-black text-white capitalize">
               {definitionPanel.loading ? 'Loading...' : definitionPanel.baseWord || selectedWord}
@@ -570,47 +940,60 @@ function ReaderView({ autoSave, loadWords, words }) {
               <X size={20} />
             </button>
           </div>
-          
+
           {definitionPanel.loading ? (
-            <div className="flex items-center justify-center py-12">
+            <div className="flex-grow flex items-center justify-center">
               <Loader2 className="animate-spin text-indigo-400" size={32} />
             </div>
           ) : definitionPanel.error ? (
             <div className="bg-red-500/10 border-2 border-red-500/30 rounded-2xl p-6 text-center">
-              <p className="text-red-400">{definitionPanel.error}</p>
+              <p className="text-red-400 font-bold mb-2">Word Not Found</p>
+              <p className="text-slate-400 text-sm">{definitionPanel.error}</p>
             </div>
           ) : (
-            <div className="space-y-6">
+            <div className="space-y-6 flex-grow flex flex-col">
               <div>
                 <p className="text-slate-400 text-sm font-bold uppercase tracking-wider mb-2">Definition</p>
                 <p className="text-white leading-relaxed">{definitionPanel.definition}</p>
               </div>
 
-              {definitionPanel.audioUrl && (
-                <button
-                  onClick={() => new Audio(definitionPanel.audioUrl).play()}
-                  className="w-full flex items-center justify-center gap-3 px-6 py-3 bg-slate-800 hover:bg-slate-700 rounded-xl transition-colors font-bold"
-                >
-                  <Volume2 size={20} />
-                  Play Pronunciation
-                </button>
-              )}
-
-              {!autoSave && (
-                <button
-                  onClick={addToLibrary}
-                  className="w-full flex items-center justify-center gap-3 px-6 py-4 bg-indigo-500 hover:bg-indigo-600 rounded-xl transition-colors font-bold text-lg"
-                >
-                  <Plus size={20} />
-                  Add to Library
-                </button>
-              )}
-
-              {autoSave && (
-                <div className="bg-green-500/10 border-2 border-green-500/30 rounded-2xl p-4 text-center">
-                  <p className="text-green-400 text-sm font-bold">✓ Auto-saved to library</p>
+              {definitionPanel.example && (
+                <div>
+                  <p className="text-slate-400 text-sm font-bold uppercase tracking-wider mb-2">Example</p>
+                  <p className="text-slate-300 italic leading-relaxed">"{definitionPanel.example}"</p>
                 </div>
               )}
+
+              <div className="flex-grow"></div>
+
+              <div className="space-y-3">
+                {((settings.apiSource === 'free-dictionary' && definitionPanel.phonetics?.some(p => p.audio)) ||
+                  (settings.apiSource === 'merriam-webster' && definitionPanel.audioUrl)) && (
+                  <button
+                    onClick={playAudio}
+                    className="w-full flex items-center justify-center gap-3 px-6 py-3 bg-slate-800 hover:bg-slate-700 rounded-xl transition-colors font-bold"
+                  >
+                    <Volume2 size={20} />
+                    Play Pronunciation
+                  </button>
+                )}
+
+                {!settings.autoSave && (
+                  <button
+                    onClick={addToLibrary}
+                    className="w-full flex items-center justify-center gap-3 px-6 py-4 bg-indigo-500 hover:bg-indigo-600 rounded-xl transition-colors font-bold text-lg"
+                  >
+                    <Plus size={20} />
+                    Add to Library
+                  </button>
+                )}
+
+                {settings.autoSave && (
+                  <div className="bg-green-500/10 border-2 border-green-500/30 rounded-2xl p-4 text-center">
+                    <p className="text-green-400 text-sm font-bold">✓ Auto-saved to library</p>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
