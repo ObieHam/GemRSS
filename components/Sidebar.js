@@ -1,4 +1,4 @@
-import { BookOpen, Upload, List, FileText, Settings, Menu, X } from 'lucide-react';
+import { BookOpen, Upload, List, FileText, Settings, Menu, X, Brain } from 'lucide-react';
 
 export default function Sidebar({ view, setView, sidebarOpen, setSidebarOpen, onSettingsClick }) {
   return (
@@ -38,7 +38,7 @@ export default function Sidebar({ view, setView, sidebarOpen, setSidebarOpen, on
             className={`w-full flex items-center gap-4 p-4 rounded-xl transition-colors ${view === 'browse' ? 'bg-indigo-500 text-white' : 'hover:bg-slate-800 text-slate-400'}`}
           >
             <List size={20} />
-            {sidebarOpen && <span className="font-bold">Browse</span>}
+            {sidebarOpen && <span className="font-bold">Library</span>}
           </button>
           <button
             onClick={() => setView('reader')}
@@ -46,6 +46,13 @@ export default function Sidebar({ view, setView, sidebarOpen, setSidebarOpen, on
           >
             <FileText size={20} />
             {sidebarOpen && <span className="font-bold">Reader</span>}
+          </button>
+          <button
+            onClick={() => setView('flashcards')}
+            className={`w-full flex items-center gap-4 p-4 rounded-xl transition-colors ${view === 'flashcards' ? 'bg-indigo-500 text-white' : 'hover:bg-slate-800 text-slate-400'}`}
+          >
+            <Brain size={20} />
+            {sidebarOpen && <span className="font-bold">Flashcards</span>}
           </button>
           <button
             onClick={onSettingsClick}
