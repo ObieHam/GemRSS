@@ -1,4 +1,4 @@
-import { BookOpen, Upload, FileText, Settings, Brain } from 'lucide-react';
+import { BookOpen, Upload, FileText, Settings, Brain, Volume2 } from 'lucide-react';
 
 export default function MainMenu({ setView, onSettingsClick }) {
   return (
@@ -51,6 +51,15 @@ export default function MainMenu({ setView, onSettingsClick }) {
             <Brain size={40} className="text-emerald-400 mb-4 group-hover:scale-110 transition-transform" />
             <h3 className="text-2xl font-bold mb-2 text-white">Flashcards</h3>
             <p className="text-slate-400 text-sm">Practice with spaced repetition</p>
+          </button>
+
+          <button
+            onClick={() => setView('spelling')}
+            className="group bg-slate-900 hover:bg-slate-800 border-2 border-slate-700 hover:border-blue-500 p-8 rounded-3xl transition-all duration-300 hover:scale-105 hover:shadow-2xl hover:shadow-blue-500/20 md:col-span-2"
+          >
+            <Volume2 size={40} className="text-blue-400 mb-4 group-hover:scale-110 transition-transform" />
+            <h3 className="text-2xl font-bold mb-2 text-white">Spelling Practice</h3>
+            <p className="text-slate-400 text-sm">Master your vocabulary through dictation and typing</p>
           </button>
         </div>
 
