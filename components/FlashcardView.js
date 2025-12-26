@@ -1,16 +1,14 @@
-import { useState, useEffect, useRef } from 'react';
-import { Brain, RotateCcw, Volume2, CheckCircle, Clock, BookOpen, TrendingUp, SkipForward } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Brain, RotateCcw, Volume2, Eye, CheckCircle, Clock, BookOpen, TrendingUp, ChevronRight } from 'lucide-react';
 import { flashcardDb } from '../lib/flashcardStorage';
 
 export default function FlashcardView({ words, settings }) {
   const [mode, setMode] = useState('menu');
   const [dueCards, setDueCards] = useState([]);
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
-  const [userInput, setUserInput] = useState("");
-  const [feedback, setFeedback] = useState(null); // 'correct', 'incorrect'
+  const [showAnswer, setShowAnswer] = useState(false);
   const [stats, setStats] = useState(null);
   const [sessionComplete, setSessionComplete] = useState(false);
-  const inputRef = useRef(null);
 
   useEffect(() => { loadStats(); }, [words]);
 
@@ -24,8 +22,7 @@ export default function FlashcardView({ words, settings }) {
     if (due.length === 0) return alert('No cards due for review!');
     setDueCards(due);
     setCurrentCardIndex(0);
-    setUserInput("");
-    setFeedback(null);
+    setShowAnswer(false);
     setSessionComplete(false);
     setMode('session');
   };
@@ -37,8 +34,7 @@ export default function FlashcardView({ words, settings }) {
     
     if (currentCardIndex + 1 < dueCards.length) {
       setCurrentCardIndex(currentCardIndex + 1);
-      setUserInput("");
-      setFeedback(null);
+      setShowAnswer(false);
     } else {
       setSessionComplete(true);
       await loadStats();
@@ -56,51 +52,46 @@ export default function FlashcardView({ words, settings }) {
     }
   };
 
-  const renderComparison = () => {
-    const correct = dueCards[currentCardIndex].word.word.toLowerCase();
-    const user = userInput.toLowerCase();
-    const maxLen = Math.max(correct.length, user.length);
-    
-    return (
-      <div className="flex gap-1 justify-center font-mono text-xl mt-4">
-        {Array.from({ length: maxLen }).map((_, i) => (
-          <span key={i} className={`px-1 border-b-2 ${user[i] === correct[i] ? 'text-emerald-400 border-emerald-500/30' : 'text-red-400 border-red-500'}`}>
-            {user[i] || '_'}
-          </span>
-        ))}
-      </div>
-    );
-  };
-
-  const checkSpelling = () => {
-    const isCorrect = userInput.toLowerCase().trim() === dueCards[currentCardIndex].word.word.toLowerCase();
-    setFeedback(isCorrect ? 'correct' : 'incorrect');
-  };
-
   if (mode === 'menu') {
     return (
-      <div className="p-8 max-w-4xl mx-auto">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <div className="bg-emerald-500 p-2 rounded-lg"><Brain size={24} className="text-white" /></div>
-            <h2 className="text-3xl font-black text-white">Flashcards</h2>
+      <div className="p-8 max-w-6xl mx-auto space-y-8 animate-in fade-in duration-500">
+        <header className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="bg-emerald-500 p-3 rounded-2xl shadow-lg shadow-emerald-500/20">
+              <Brain size={32} className="text-white" />
+            </div>
+            <h2 className="text-5xl font-black text-white">Flashcards</h2>
           </div>
-        </div>
+        </header>
 
         {stats && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-            <div className="bg-slate-900 border border-slate-700/50 p-4 rounded-xl">
-              <p className="text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-1">New</p>
-              <p className="text-2xl font-black text-white">{stats.newCards}</p>
-            </div>
-            <div className="bg-slate-900 border border-slate-700/50 p-4 rounded-xl">
-              <p className="text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-1">Due</p>
-              <p className="text-2xl font-black text-indigo-400">{stats.dueToday}</p>
-            </div>
-            <div className="bg-slate-900 border border-slate-700/50 p-4 rounded-xl md:col-span-2">
-              <button onClick={startSession} className="w-full h-full bg-indigo-600 hover:bg-indigo-500 rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-2">
-                <TrendingUp size={16} /> Start Review
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 bg-[#1e293b] border border-slate-700/50 rounded-[2.5rem] p-10 flex flex-col justify-center text-center">
+              <h3 className="text-3xl font-bold text-white mb-4">
+                {stats.dueToday > 0 ? `${stats.dueToday} Cards Due Now` : "All Caught Up!"}
+              </h3>
+              <p className="text-slate-400 mb-8 max-w-md mx-auto">Master your vocabulary through spaced repetition. We prioritize words you're about to forget.</p>
+              <button
+                onClick={startSession}
+                className="w-full py-5 bg-emerald-600 hover:bg-emerald-500 rounded-3xl font-bold text-xl text-white transition-all shadow-xl shadow-emerald-500/10"
+              >
+                Start Session
               </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="bg-slate-900 border border-slate-700/50 p-6 rounded-3xl">
+                <p className="text-slate-500 text-xs font-black uppercase tracking-widest mb-1">Due Cards</p>
+                <p className="text-3xl font-black text-emerald-400">{stats.dueToday}</p>
+              </div>
+              <div className="bg-slate-900 border border-slate-700/50 p-6 rounded-3xl">
+                <p className="text-slate-500 text-xs font-black uppercase tracking-widest mb-1">New Words</p>
+                <p className="text-3xl font-black text-blue-400">{stats.newCards}</p>
+              </div>
+              <div className="bg-slate-900 border border-slate-700/50 p-6 rounded-3xl">
+                <p className="text-slate-500 text-xs font-black uppercase tracking-widest mb-1">Learning</p>
+                <p className="text-3xl font-black text-orange-400">{stats.learning}</p>
+              </div>
             </div>
           </div>
         )}
@@ -110,66 +101,76 @@ export default function FlashcardView({ words, settings }) {
 
   if (sessionComplete) {
     return (
-      <div className="p-8 max-w-2xl mx-auto text-center">
-        <div className="bg-slate-900 border border-emerald-500/30 rounded-2xl p-8">
-          <CheckCircle size={48} className="text-emerald-500 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold mb-2">Session Complete!</h2>
-          <button onClick={() => setMode('menu')} className="bg-indigo-500 px-6 py-2 rounded-lg font-bold">Finish</button>
+      <div className="min-h-[60vh] flex flex-col items-center justify-center p-12 text-center">
+        <div className="bg-emerald-500 p-6 rounded-full mb-6 shadow-2xl shadow-emerald-500/20">
+          <CheckCircle size={64} className="text-white" />
         </div>
+        <h2 className="text-4xl font-black text-white mb-4">Session Complete!</h2>
+        <button onClick={() => setMode('menu')} className="bg-indigo-600 px-10 py-4 rounded-2xl font-bold">Return to Menu</button>
       </div>
     );
   }
 
   const currentCard = dueCards[currentCardIndex];
+  const progress = ((currentCardIndex + 1) / dueCards.length) * 100;
 
   return (
-    <div className="p-6 max-w-2xl mx-auto">
-      <div className="bg-slate-900 border-2 border-slate-800 rounded-2xl p-6 relative">
-        <div className="text-center mb-6">
-          <span className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em] block mb-2">Definition</span>
-          <p className="text-lg text-slate-200 leading-snug">{currentCard.word.definition}</p>
+    <div className="p-8 max-w-4xl mx-auto space-y-8">
+      {/* Progress Bar Container */}
+      <div className="bg-slate-900/50 p-6 rounded-3xl border border-slate-700/30">
+        <div className="flex justify-between items-center mb-3">
+            <span className="text-xs font-black text-slate-500 uppercase">Progress: {currentCardIndex + 1} / {dueCards.length}</span>
+            <span className="text-xs font-black text-emerald-400 uppercase">{Math.round(progress)}%</span>
         </div>
+        <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
+            <div className="h-full bg-emerald-500 transition-all duration-500" style={{ width: `${progress}%` }}></div>
+        </div>
+      </div>
 
-        <div className="space-y-4">
-          <input
-            ref={inputRef}
-            type="text"
-            value={userInput}
-            onChange={(e) => setUserInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && checkSpelling()}
-            placeholder="Type word to check..."
-            className="w-full bg-slate-950 border border-slate-800 p-3 rounded-lg text-center font-bold text-white focus:border-indigo-500 outline-none"
-          />
-
-          {feedback === 'incorrect' && renderComparison()}
-
-          <div className="grid grid-cols-4 gap-2">
-            {[
-              { q: 0, l: 'Again', c: 'bg-red-500/10 text-red-400 border-red-500/20', i: '<1m' },
-              { q: 1, l: 'Hard', c: 'bg-orange-500/10 text-orange-400 border-orange-500/20', i: '1d' },
-              { q: 2, l: 'Good', c: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20', i: '4d' },
-              { q: 3, l: 'Easy', c: 'bg-blue-500/10 text-blue-400 border-blue-500/20', i: '7d' },
-            ].map((opt) => (
-              <button
-                key={opt.l}
-                onClick={() => handleAnswer(opt.q)}
-                className={`flex flex-col items-center py-2 rounded-lg border hover:scale-105 transition-all ${opt.c}`}
-              >
-                <span className="text-[10px] font-black uppercase">{opt.l}</span>
-                <span className="text-[9px] opacity-60 font-mono">{opt.i}</span>
-              </button>
-            ))}
-          </div>
-
-          <div className="flex gap-2 border-t border-slate-800/50 pt-4 mt-4">
-            <button onClick={() => playAudio(currentCard.word)} className="flex-1 bg-slate-800 p-2 rounded-lg flex items-center justify-center gap-2 text-xs font-bold text-slate-300">
-              <Volume2 size={14} /> Listen
-            </button>
-            <button onClick={() => handleAnswer(2)} className="flex-1 bg-slate-800 p-2 rounded-lg flex items-center justify-center gap-2 text-xs font-bold text-slate-300">
-              <SkipForward size={14} /> Skip
+      <div className="bg-[#1e293b] border border-slate-700/50 rounded-[3rem] p-16 min-h-[500px] flex flex-col items-center justify-center text-center shadow-2xl relative overflow-hidden">
+        {!showAnswer ? (
+          <div className="space-y-8 animate-in zoom-in-95 duration-300">
+            <div>
+                <span className="text-indigo-400 font-black text-xs uppercase tracking-widest block mb-4">Definition</span>
+                <p className="text-3xl font-bold text-white leading-relaxed">{currentCard.word.definition}</p>
+            </div>
+            <button
+              onClick={() => setShowAnswer(true)}
+              className="px-12 py-5 bg-indigo-600 hover:bg-indigo-500 rounded-3xl font-black text-xl text-white shadow-xl shadow-indigo-500/20 transition-all hover:scale-105"
+            >
+              Reveal Answer
             </button>
           </div>
-        </div>
+        ) : (
+          <div className="w-full space-y-10 animate-in fade-in duration-300">
+            <div className="space-y-2">
+                <span className="text-emerald-400 font-black text-xs uppercase tracking-widest block">The Word</span>
+                <h3 className="text-6xl font-black text-white capitalize">{currentCard.word.word}</h3>
+                <button onClick={() => playAudio(currentCard.word)} className="p-3 bg-slate-800 hover:bg-indigo-600 rounded-full mt-4 transition-all">
+                    <Volume2 size={24} className="text-white" />
+                </button>
+            </div>
+
+            {/* Glowing Anki Buttons */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 w-full">
+                {[
+                  { q: 0, l: 'Again', c: 'bg-red-500 hover:shadow-red-500/40', i: '<1m' },
+                  { q: 1, l: 'Hard', c: 'bg-orange-500 hover:shadow-orange-500/40', i: '2d' },
+                  { q: 2, l: 'Good', c: 'bg-emerald-500 hover:shadow-emerald-500/40', i: '4d' },
+                  { q: 3, l: 'Easy', c: 'bg-blue-500 hover:shadow-blue-500/40', i: '7d' },
+                ].map((btn) => (
+                  <button
+                    key={btn.l}
+                    onClick={() => handleAnswer(btn.q)}
+                    className={`${btn.c} p-6 rounded-[2rem] text-white transition-all hover:scale-105 hover:shadow-xl group`}
+                  >
+                    <span className="block font-black text-lg">{btn.l}</span>
+                    <span className="text-xs font-bold opacity-70 group-hover:opacity-100 transition-opacity">{btn.i}</span>
+                  </button>
+                ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
