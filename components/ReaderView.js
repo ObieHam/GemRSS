@@ -1,3 +1,4 @@
+// components/ReaderView.js
 import { useState, useEffect, useRef } from 'react';
 import { Upload, Loader2, X, ChevronLeft, ChevronRight, Volume2, Plus, Info } from 'lucide-react';
 import * as pdfjsLib from 'pdfjs-dist';
@@ -7,305 +8,204 @@ import { isValidWord } from '../lib/utils';
 import { fetchDefinition } from '../lib/apiService';
 
 export default function ReaderView({ settings, loadWords, words }) {
-  const [pdfPages, setPdfPages] = useState([]);
+  const [pdfDoc, setPdfDoc] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
+  const [textItems, setTextItems] = useState([]);
+  const [viewport, setViewport] = useState(null);
   const [highlightedWords, setHighlightedWords] = useState([]);
-  const [selectedWord, setSelectedWord] = useState(null);
   const [definitionPanel, setDefinitionPanel] = useState(null);
   const [loading, setLoading] = useState(false);
   const [showHint, setShowHint] = useState(true);
+
+  const canvasRef = useRef(null);
+  const containerRef = useRef(null);
   const fileInputRef = useRef(null);
 
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
-    if (!file) return;
-
+    if (!file || file.type !== 'application/pdf') return;
     setLoading(true);
     try {
-      if (file.type === 'application/pdf') {
-        const arrayBuffer = await file.arrayBuffer();
-        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-        const pages = [];
-
-        for (let i = 1; i <= pdf.numPages; i++) {
-          const page = await pdf.getPage(i);
-          const textContent = await page.getTextContent();
-          const pageText = textContent.items.map(item => item.str).join(' ');
-          pages.push(pageText);
-        }
-
-        setPdfPages(pages);
-        setTotalPages(pages.length);
-        setCurrentPage(1);
-        analyzePageWords(pages[0]);
-      } else {
-        const text = await file.text();
-        const pages = text.split('\n\n\n');
-        setPdfPages(pages);
-        setTotalPages(pages.length);
-        setCurrentPage(1);
-        analyzePageWords(pages[0]);
-      }
-    } catch (error) {
-      console.error('Error processing file:', error);
-      alert('Error processing file. Please try again.');
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      setPdfDoc(pdf);
+      setTotalPages(pdf.numPages);
+      setCurrentPage(1);
+    } catch (err) {
+      console.error(err);
+      alert('Error loading PDF');
     } finally {
       setLoading(false);
     }
   };
 
-  const analyzePageWords = async (pageText) => {
-    const tokens = pageText.match(/\b[a-zA-Z]{4,}\b/g) || [];
-    const newWords = [];
-    const allWords = await db.vocabulary.toArray();
-
-    for (const token of tokens) {
-      const lowerToken = token.toLowerCase();
-      if (COMMON_WORDS.has(lowerToken)) continue;
+  const renderPage = async (pageNum) => {
+    if (!pdfDoc) return;
+    setLoading(true);
+    try {
+      const page = await pdfDoc.getPage(pageNum);
       
-      if (isValidWord(lowerToken) || token === token.toUpperCase()) {
-        const exists = allWords.find(w => w.word === lowerToken);
-        if (!exists && !newWords.includes(token)) {
-          newWords.push(token);
+      // Calculate scale to fit container width
+      const containerWidth = containerRef.current.clientWidth - 96;
+      const unscaledViewport = page.getViewport({ scale: 1 });
+      const scale = containerWidth / unscaledViewport.width;
+      const vp = page.getViewport({ scale });
+      setViewport(vp);
+
+      // Render Canvas
+      const canvas = canvasRef.current;
+      const context = canvas.getContext('2d');
+      canvas.height = vp.height;
+      canvas.width = vp.width;
+      await page.render({ canvasContext: context, viewport: vp }).promise;
+
+      // Extract Text for Interaction
+      const textContent = await page.getTextContent();
+      setTextItems(textContent.items);
+      
+      // Analyze words for highlighting
+      const pageText = textContent.items.map(item => item.str).join(' ');
+      const tokens = pageText.match(/\b[a-zA-Z]{4,}\b/g) || [];
+      const newWords = [];
+      const allWordsInLib = await db.vocabulary.toArray();
+
+      for (const token of tokens) {
+        const lower = token.toLowerCase();
+        if (COMMON_WORDS.has(lower)) continue;
+        if (isValidWord(lower)) {
+          if (!allWordsInLib.find(w => w.word === lower)) newWords.push(lower);
         }
       }
-    }
+      setHighlightedWords([...new Set(newWords)]);
 
-    setHighlightedWords(newWords);
+    } catch (err) {
+      console.error('Render error:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
-    if (pdfPages.length > 0 && currentPage > 0) {
-      analyzePageWords(pdfPages[currentPage - 1]);
-    }
-  }, [currentPage, pdfPages, words]);
-
-  const playAudio = (audioData) => {
-    if (settings.apiSource === 'free-dictionary' && audioData.phonetics) {
-      const accentMap = { us: '-us', uk: '-uk', au: '-au' };
-      const preferredAudio = audioData.phonetics.find(p =>
-        p.audio && p.audio.includes(accentMap[settings.accent])
-      );
-      const audioUrl = preferredAudio?.audio || audioData.phonetics.find(p => p.audio)?.audio;
-
-      if (audioUrl) {
-        new Audio(audioUrl).play().catch(e => console.error("Audio play failed", e));
-      }
-    } else if (audioData.audioUrl) {
-      new Audio(audioData.audioUrl).play().catch(e => console.error("Audio play failed", e));
-    }
-  };
+    if (pdfDoc) renderPage(currentPage);
+  }, [pdfDoc, currentPage]);
 
   const handleWordClick = async (word, isRightClick = false) => {
-    const lowerWord = word.toLowerCase();
-    
-    setSelectedWord(lowerWord);
-    setDefinitionPanel({ loading: true, word: lowerWord });
-    
+    const cleanWord = word.replace(/[^a-zA-Z]/g, "").toLowerCase();
+    if (!cleanWord || cleanWord.length < 3) return;
+
+    setDefinitionPanel({ loading: true, word: cleanWord });
     try {
-      const info = await fetchDefinition(lowerWord, settings);
-      
+      const info = await fetchDefinition(cleanWord, settings);
       if (info.error) {
-        setDefinitionPanel({ error: info.error, word: lowerWord });
+        setDefinitionPanel({ error: info.error, word: cleanWord });
         return;
       }
-      
       setDefinitionPanel(info);
 
-      // Auto-play audio
-      playAudio(info);
+      if (info.audioUrl || info.phonetics?.some(p => p.audio)) {
+        const audio = new Audio(info.audioUrl || info.phonetics.find(p => p.audio).audio);
+        audio.play().catch(() => {});
+      }
 
-      // Auto-save if enabled and not right-click (right-click is for looking up existing words)
       if (settings.autoSave && !isRightClick) {
         const exists = await db.vocabulary.where('word').equals(info.word).first();
         if (!exists) {
           await db.vocabulary.add(info);
           await loadWords();
-          setHighlightedWords(prev => prev.filter(w => w.toLowerCase() !== info.word));
         }
       }
-    } catch (error) {
-      console.error('Error fetching definition:', error);
-      setDefinitionPanel({ error: 'Failed to load definition', word: lowerWord });
+    } catch (e) {
+      setDefinitionPanel({ error: 'Definition error', word: cleanWord });
     }
-  };
-
-  const addToLibrary = async () => {
-    if (definitionPanel && !definitionPanel.loading && !definitionPanel.error) {
-      const exists = await db.vocabulary.where('word').equals(definitionPanel.word).first();
-      if (!exists) {
-        await db.vocabulary.add(definitionPanel);
-        await loadWords();
-        setHighlightedWords(prev => prev.filter(w => w.toLowerCase() !== definitionPanel.word));
-      }
-      // Panel stays open showing the same word
-    }
-  };
-
-  const handleContextMenu = (e, word) => {
-    e.preventDefault();
-    handleWordClick(word, true);
-  };
-
-  const renderText = () => {
-    if (pdfPages.length === 0) return null;
-    const currentText = pdfPages[currentPage - 1] || '';
-    const parts = currentText.split(/(\s+|[.,!?;:()"])/);
-    
-    return (
-      <div className="text-slate-200 leading-relaxed text-lg">
-        {parts.map((part, idx) => {
-          const cleanPart = part.trim();
-          if (cleanPart && /^[a-zA-Z]+$/.test(cleanPart)) {
-            const isHighlighted = highlightedWords.includes(part);
-            return (
-              <span
-                key={idx}
-                className={`${isHighlighted ? 'bg-gradient-to-r from-amber-400/30 to-yellow-400/30 px-1 rounded-md border-b-2 border-amber-500/50 cursor-pointer hover:from-amber-400/50 hover:to-yellow-400/50 transition-all' : 'cursor-pointer hover:bg-slate-700/30 px-0.5 rounded'}`}
-                onClick={() => handleWordClick(part)}
-                onContextMenu={(e) => handleContextMenu(e, part)}
-              >
-                {part}
-              </span>
-            );
-          }
-          return <span key={idx}>{part}</span>;
-        })}
-      </div>
-    );
   };
 
   return (
-    <div className="flex h-screen">
-      <div className="flex-grow p-12 overflow-y-auto">
-        {pdfPages.length === 0 ? (
-          <div className="max-w-4xl mx-auto">
-            <h2 className="text-5xl font-black mb-8 text-white">PDF Reader</h2>
+    <div className="flex h-screen overflow-hidden bg-[#0f172a]">
+      <div ref={containerRef} className="flex-grow p-12 overflow-y-auto scrollbar-hide">
+        {!pdfDoc ? (
+          <div className="max-w-4xl mx-auto mt-20">
+            <h2 className="text-5xl font-black mb-8 text-white">Advanced PDF Reader</h2>
             <div className="bg-slate-900 border-2 border-slate-700 rounded-3xl p-12 text-center">
-              <input
-                ref={fileInputRef}
-                type="file"
-                className="hidden"
-                onChange={handleFileUpload}
-                accept=".pdf,.txt"
-              />
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={loading}
-                className="inline-flex items-center gap-4 px-8 py-4 bg-indigo-500 hover:bg-indigo-600 disabled:bg-slate-700 rounded-2xl font-bold text-lg transition-colors"
-              >
-                {loading ? <Loader2 size={24} className="animate-spin" /> : <Upload size={24} />}
-                {loading ? 'Processing...' : 'Upload PDF'}
+              <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileUpload} accept=".pdf" />
+              <button onClick={() => fileInputRef.current?.click()} disabled={loading} className="inline-flex items-center gap-4 px-8 py-4 bg-indigo-500 hover:bg-indigo-600 rounded-2xl font-bold text-lg">
+                {loading ? <Loader2 className="animate-spin" /> : <Upload />} Select Scientific Paper
               </button>
             </div>
           </div>
         ) : (
-          <div className="max-w-4xl mx-auto">
-            <div className="flex items-center justify-between mb-8">
+          <div className="max-w-5xl mx-auto">
+            <div className="flex items-center justify-between mb-8 bg-slate-900/50 p-4 rounded-2xl border border-slate-800">
               <div className="flex items-center gap-4">
-                <h2 className="text-3xl font-black text-white">Reading Mode</h2>
+                <h2 className="text-xl font-bold text-white">Page {currentPage} / {totalPages}</h2>
                 {showHint && (
-                  <div className="flex items-center gap-2 bg-indigo-500/20 border border-indigo-500/30 rounded-xl px-4 py-2 text-sm">
-                    <Info size={16} className="text-indigo-400" />
-                    <span className="text-indigo-300">Right-click any word to look it up</span>
-                    <button onClick={() => setShowHint(false)} className="text-indigo-400 hover:text-indigo-300 ml-2">
-                      <X size={16} />
-                    </button>
+                  <div className="text-xs bg-indigo-500/20 text-indigo-300 px-3 py-1 rounded-lg border border-indigo-500/30">
+                    Click any word to look up
                   </div>
                 )}
               </div>
-              <div className="flex items-center gap-4">
-                <button
-                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                  disabled={currentPage === 1}
-                  className="p-3 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed rounded-xl transition-colors"
-                >
-                  <ChevronLeft size={20} />
-                </button>
-                <span className="text-slate-400 font-bold min-w-[120px] text-center">
-                  Page {currentPage} of {totalPages}
-                </span>
-                <button
-                  onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                  disabled={currentPage === totalPages}
-                  className="p-3 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed rounded-xl transition-colors"
-                >
-                  <ChevronRight size={20} />
-                </button>
+              <div className="flex gap-2">
+                <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} className="p-2 bg-slate-800 hover:bg-slate-700 rounded-lg"><ChevronLeft /></button>
+                <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} className="p-2 bg-slate-800 hover:bg-slate-700 rounded-lg"><ChevronRight /></button>
               </div>
             </div>
-            <div className="bg-slate-900 border-2 border-slate-700 rounded-3xl p-12 min-h-[600px]">
-              {renderText()}
+
+            <div className="relative shadow-2xl rounded-sm overflow-hidden bg-white mx-auto" style={{ width: viewport?.width, height: viewport?.height }}>
+              <canvas ref={canvasRef} className="absolute inset-0" />
+              
+              {/* INTERACTIVE TEXT LAYER */}
+              <div className="absolute inset-0 pointer-events-none">
+                {viewport && textItems.map((item, idx) => {
+                  const [a, b, c, d, tx, ty] = item.transform;
+                  const [x, y] = viewport.convertToViewportPoint(tx, ty);
+                  const fontSize = Math.sqrt(a * a + b * b) * viewport.scale;
+                  
+                  return (
+                    <div 
+                      key={idx}
+                      className="absolute pointer-events-auto whitespace-pre leading-none flex"
+                      style={{ left: x, top: y - fontSize, fontSize: `${fontSize}px`, height: fontSize, color: 'transparent' }}
+                    >
+                      {item.str.split(/(\s+)/).map((token, tIdx) => {
+                        const isWord = /^[a-zA-Z]{3,}$/.test(token);
+                        const isHigh = highlightedWords.includes(token.toLowerCase());
+                        return (
+                          <span 
+                            key={tIdx} 
+                            onClick={() => isWord && handleWordClick(token)}
+                            className={`${isWord ? 'cursor-pointer hover:bg-indigo-500/30' : ''} ${isHigh ? 'bg-amber-400/20 border-b-2 border-amber-500/40' : ''}`}
+                          >
+                            {token}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
         )}
       </div>
 
       {definitionPanel && (
-        <div className="w-96 bg-slate-950 border-l-2 border-slate-800 p-8 overflow-y-auto flex flex-col">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-2xl font-black text-white capitalize">
-              {definitionPanel.loading ? 'Loading...' : definitionPanel.word || selectedWord}
-            </h3>
-            <button onClick={() => setDefinitionPanel(null)} className="p-2 hover:bg-slate-800 rounded-xl transition-colors">
-              <X size={20} />
-            </button>
+        <div className="w-96 bg-slate-950 border-l border-slate-800 p-8 flex flex-col">
+          <div className="flex justify-between items-center mb-8">
+            <h3 className="text-2xl font-black text-white capitalize">{definitionPanel.word}</h3>
+            <button onClick={() => setDefinitionPanel(null)} className="p-2 hover:bg-slate-800 rounded-xl"><X /></button>
           </div>
-
-          {definitionPanel.loading ? (
-            <div className="flex-grow flex items-center justify-center">
-              <Loader2 className="animate-spin text-indigo-400" size={32} />
-            </div>
-          ) : definitionPanel.error ? (
-            <div className="bg-red-500/10 border-2 border-red-500/30 rounded-2xl p-6 text-center">
-              <p className="text-red-400 font-bold mb-2">Word Not Found</p>
-              <p className="text-slate-400 text-sm">{definitionPanel.error}</p>
-            </div>
-          ) : (
-            <div className="space-y-6 flex-grow flex flex-col">
+          {definitionPanel.loading ? <Loader2 className="animate-spin mx-auto mt-20 text-indigo-500" /> : (
+            <div className="space-y-6">
               <div>
-                <p className="text-slate-400 text-sm font-bold uppercase tracking-wider mb-2">Definition</p>
-                <p className="text-white leading-relaxed">{definitionPanel.definition}</p>
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Definition</p>
+                <p className="text-slate-200 leading-relaxed">{definitionPanel.definition}</p>
               </div>
-
               {definitionPanel.example && (
                 <div>
-                  <p className="text-slate-400 text-sm font-bold uppercase tracking-wider mb-2">Example</p>
-                  <p className="text-slate-300 italic leading-relaxed">"{definitionPanel.example}"</p>
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Example</p>
+                  <p className="text-slate-400 italic">"{definitionPanel.example}"</p>
                 </div>
               )}
-
-              <div className="flex-grow"></div>
-
-              <div className="space-y-3">
-                {((settings.apiSource === 'free-dictionary' && definitionPanel.phonetics?.some(p => p.audio)) ||
-                  (settings.apiSource === 'merriam-webster' && definitionPanel.audioUrl)) && (
-                  <button
-                    onClick={() => playAudio(definitionPanel)}
-                    className="w-full flex items-center justify-center gap-3 px-6 py-3 bg-slate-800 hover:bg-slate-700 rounded-xl transition-colors font-bold"
-                  >
-                    <Volume2 size={20} />
-                    Play Pronunciation
-                  </button>
-                )}
-
-                {!settings.autoSave && (
-                  <button
-                    onClick={addToLibrary}
-                    className="w-full flex items-center justify-center gap-3 px-6 py-4 bg-indigo-500 hover:bg-indigo-600 rounded-xl transition-colors font-bold text-lg"
-                  >
-                    <Plus size={20} />
-                    Add to Library
-                  </button>
-                )}
-
-                {settings.autoSave && (
-                  <div className="bg-green-500/10 border-2 border-green-500/30 rounded-2xl p-4 text-center">
-                    <p className="text-green-400 text-sm font-bold">✓ Auto-saved to library</p>
-                  </div>
-                )}
-              </div>
             </div>
           )}
         </div>
