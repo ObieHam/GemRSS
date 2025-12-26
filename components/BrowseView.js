@@ -1,144 +1,189 @@
-import { useState, useEffect, useMemo } from 'react';
-import { Search, Trash2, Volume2, Calendar, AlertCircle, SortAsc, SortDesc, Brain } from 'lucide-react';
+import { useState } from 'react';
+import { Search, Trash2, Volume2, AlertTriangle, BookOpen, ExternalLink } from 'lucide-react';
 import { db } from '../lib/storage';
 
 export default function BrowseView({ words, loadWords, settings, setView }) {
   const [search, setSearch] = useState("");
-  const [sortBy, setSortBy] = useState("mistakes"); // mistakes, date
-  const [sortOrder, setSortOrder] = useState("desc");
-  const [allStats, setAllStats] = useState({});
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
 
-  useEffect(() => {
-    const fetchAllPerformance = async () => {
-      const spData = JSON.parse(localStorage.getItem('spellingReviews') || '{}');
-      const fcData = JSON.parse(localStorage.getItem('flashcardReviews') || '[]');
+  const playAudio = (wordObj) => {
+    if (settings.apiSource === 'free-dictionary') {
+      const accentMap = { us: '-us', uk: '-uk', au: '-au' };
+      const preferredAudio = wordObj.phonetics?.find(p => 
+        p.audio && p.audio.includes(accentMap[settings.accent])
+      );
+      const audioUrl = preferredAudio?.audio || wordObj.phonetics?.find(p => p.audio)?.audio;
       
-      const combined = {};
-      words.forEach(w => {
-        const sp = spData[w.id] || { lapses: 0, repetitions: 0 };
-        const fc = fcData.find(r => r.wordId === w.id) || { lapses: 0, repetitions: 0 };
-        combined[w.id] = {
-          totalMistakes: (sp.lapses || 0) + (fc.lapses || 0),
-          spellingMistakes: sp.lapses || 0,
-          flashcardMistakes: fc.lapses || 0,
-          spellingAccuracy: sp.repetitions > 0 ? Math.round(((sp.repetitions - sp.lapses)/sp.repetitions)*100) : 0
-        };
-      });
-      setAllStats(combined);
-    };
-    fetchAllPerformance();
-  }, [words]);
-
-  const filteredAndSorted = useMemo(() => {
-    let result = words.filter(w => 
-      w.word.toLowerCase().includes(search.toLowerCase()) || 
-      w.definition.toLowerCase().includes(search.toLowerCase())
-    );
-
-    result.sort((a, b) => {
-      let valA, valB;
-      if (sortBy === 'mistakes') {
-        valA = allStats[a.id]?.totalMistakes || 0;
-        valB = allStats[b.id]?.totalMistakes || 0;
-      } else {
-        valA = a.dateAdded || 0;
-        valB = b.dateAdded || 0;
+      if (audioUrl) {
+        new Audio(audioUrl).play().catch(e => console.error("Audio play failed", e));
       }
-      return sortOrder === 'desc' ? valB - valA : valA - valB;
-    });
-
-    return result;
-  }, [words, search, sortBy, sortOrder, allStats]);
-
-  const toggleSort = (type) => {
-    if (sortBy === type) {
-      setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc');
-    } else {
-      setSortBy(type);
-      setSortOrder('desc');
+    } else if (wordObj.audioUrl) {
+      new Audio(wordObj.audioUrl).play().catch(e => console.error("Audio play failed", e));
     }
   };
 
+  const deleteWord = async (id) => {
+    await db.vocabulary.delete(id);
+    await loadWords();
+  };
+
+  const clearAll = async () => {
+    // 1. Clear the primary vocabulary database
+    await db.vocabulary.clear();
+    
+    // 2. Clear performance data for both Flashcards and Spelling
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('flashcardReviews');
+      localStorage.removeItem('spellingReviews');
+      
+      // 3. Clear any cached dictionary definitions
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('dict_')) {
+          localStorage.removeItem(key);
+        }
+      });
+    }
+    
+    await loadWords();
+    setShowClearConfirm(false);
+  };
+
+  const filtered = words.filter(w => 
+    w.word && w.word.toLowerCase().includes(search.toLowerCase())
+  );
+
   return (
-    <div className="p-8 max-w-6xl mx-auto space-y-8 animate-in fade-in duration-500">
+    <div className="p-4 max-w-5xl mx-auto space-y-6 animate-in fade-in duration-500">
+      {/* Header & Management Actions */}
       <div className="flex items-center justify-between">
-        <h2 className="text-4xl font-black text-white">Words and Stats</h2>
-        <div className="flex gap-4">
-            <button 
-                onClick={() => toggleSort('mistakes')}
-                className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest border transition-all flex items-center gap-2 ${sortBy === 'mistakes' ? 'bg-red-500/20 border-red-500 text-red-400' : 'bg-slate-900 border-slate-700 text-slate-500'}`}
-            >
-                <AlertCircle size={14} /> Sort by Mistakes {sortBy === 'mistakes' && (sortOrder === 'desc' ? '↓' : '↑')}
-            </button>
-            <button 
-                onClick={() => toggleSort('date')}
-                className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest border transition-all flex items-center gap-2 ${sortBy === 'date' ? 'bg-indigo-500/20 border-indigo-500 text-indigo-400' : 'bg-slate-900 border-slate-700 text-slate-500'}`}
-            >
-                <Calendar size={14} /> Sort by Date {sortBy === 'date' && (sortOrder === 'desc' ? '↓' : '↑')}
-            </button>
+        <div>
+          <h2 className="text-3xl font-black text-white">Library Management</h2>
+          <p className="text-slate-400 text-sm">Manage your {words.length} saved words</p>
+        </div>
+        <button
+          onClick={() => setShowClearConfirm(true)}
+          className="flex items-center gap-2 px-5 py-2.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 rounded-xl font-bold text-sm transition-all"
+        >
+          <Trash2 size={18} />
+          Reset Library
+        </button>
+      </div>
+
+      {/* Quick Access Stats Row (Compact) */}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+        <button 
+          onClick={() => setView('flashcard-stats')}
+          className="bg-[#1e293b] border border-slate-700/50 p-4 rounded-2xl flex items-center justify-between group hover:border-indigo-500/50 transition-all"
+        >
+          <div>
+            <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest">Flashcard Stats</p>
+            <p className="text-lg font-bold text-white">View Progress</p>
+          </div>
+          <ExternalLink size={18} className="text-slate-600 group-hover:text-indigo-400 transition-colors" />
+        </button>
+
+        <button 
+          onClick={() => setView('spelling-stats')}
+          className="bg-[#1e293b] border border-slate-700/50 p-4 rounded-2xl flex items-center justify-between group hover:border-blue-500/50 transition-all"
+        >
+          <div>
+            <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest">Spelling Stats</p>
+            <p className="text-lg font-bold text-white">View Accuracy</p>
+          </div>
+          <ExternalLink size={18} className="text-slate-600 group-hover:text-blue-400 transition-colors" />
+        </button>
+
+        <div className="hidden md:flex bg-[#1e293b] border border-slate-700/50 p-4 rounded-2xl items-center gap-3">
+          <div className="bg-indigo-500/20 p-2 rounded-lg text-indigo-400">
+            <BookOpen size={20} />
+          </div>
+          <div>
+            <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest">Total</p>
+            <p className="text-lg font-bold text-white">{words.length} Words</p>
+          </div>
         </div>
       </div>
 
+      {/* Search Input */}
       <div className="relative">
-        <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-500" size={20} />
+        <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
         <input
           type="text"
-          placeholder="Search your vocabulary..."
-          className="w-full bg-[#1e293b] border border-slate-700/50 pl-14 pr-6 py-4 rounded-2xl outline-none focus:border-indigo-500 transition-all text-white"
-          value={search}
+          placeholder="Search vocabulary..."
+          className="w-full bg-slate-900 border border-slate-700/50 focus:border-indigo-500/50 pl-12 pr-6 py-3.5 rounded-2xl outline-none transition-all text-white placeholder-slate-600"
           onChange={(e) => setSearch(e.target.value)}
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-4">
-        {filteredAndSorted.map((w) => {
-          const stats = allStats[w.id];
-          return (
-            <div key={w.id} className="bg-[#1e293b] border border-slate-700/50 p-6 rounded-3xl flex items-center gap-6 hover:border-slate-500 transition-all group">
-              <div className="flex-grow">
-                <div className="flex items-center gap-3 mb-1">
-                  <h3 className="text-2xl font-black text-white capitalize">{w.word}</h3>
-                  {stats?.totalMistakes > 0 && (
-                    <span className="bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full">
-                      {stats.totalMistakes} MISTAKES
-                    </span>
-                  )}
+      {/* Word List Table Style */}
+      <div className="bg-[#1e293b] border border-slate-700/50 rounded-3xl overflow-hidden shadow-xl">
+        {filtered.length === 0 ? (
+          <div className="p-12 text-center text-slate-500">
+            <BookOpen size={40} className="mx-auto mb-4 opacity-20" />
+            <p className="font-medium text-lg">No words found in library</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-slate-800/50">
+            {filtered.map((w) => (
+              <div key={w.id} className="p-5 hover:bg-slate-800/30 transition-colors flex items-center justify-between group">
+                <div className="flex-grow max-w-[70%]">
+                  <h3 className="text-xl font-bold text-white capitalize mb-0.5">{w.word}</h3>
+                  <p className="text-slate-400 text-sm line-clamp-1">{w.definition}</p>
                 </div>
-                <p className="text-slate-400 text-sm line-clamp-1">{w.definition}</p>
-              </div>
-
-              {/* Performance Meters */}
-              <div className="hidden md:flex items-center gap-8 text-right">
-                <div>
-                    <p className="text-[10px] font-black text-slate-500 uppercase mb-1">Spelling</p>
-                    <div className="flex items-center gap-2">
-                        <div className="w-16 h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                            <div className="h-full bg-blue-500" style={{ width: `${stats?.spellingAccuracy || 0}%` }}></div>
-                        </div>
-                        <span className="text-xs font-bold text-white">{stats?.spellingAccuracy || 0}%</span>
-                    </div>
-                </div>
-                <div>
-                    <p className="text-[10px] font-black text-slate-500 uppercase mb-1">Flashcards</p>
-                    <p className="text-xs font-bold text-white flex items-center gap-1 justify-end">
-                        <Brain size={12} className="text-emerald-400" />
-                        {stats?.flashcardMistakes || 0} lapses
-                    </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button onClick={() => setView('spelling')} className="p-3 bg-slate-800 hover:bg-blue-600 rounded-xl transition-all opacity-0 group-hover:opacity-100">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => playAudio(w)}
+                    className="p-2.5 bg-slate-800 hover:bg-indigo-600 text-slate-400 hover:text-white rounded-xl transition-all"
+                    title="Play Audio"
+                  >
                     <Volume2 size={18} />
-                </button>
-                <button onClick={async () => { await db.vocabulary.delete(w.id); loadWords(); }} className="p-3 bg-slate-800 hover:bg-red-600 rounded-xl transition-all opacity-0 group-hover:opacity-100">
+                  </button>
+                  <button
+                    onClick={() => deleteWord(w.id)}
+                    className="p-2.5 bg-slate-800 hover:bg-red-600 text-slate-400 hover:text-white rounded-xl transition-all"
+                    title="Delete Word"
+                  >
                     <Trash2 size={18} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Reset Confirmation Modal */}
+      {showClearConfirm && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[100] flex items-center justify-center p-6">
+          <div className="bg-slate-900 border-2 border-red-500/30 rounded-[2.5rem] p-10 max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="flex flex-col items-center text-center">
+              <div className="p-5 bg-red-500/20 rounded-full mb-6 text-red-400">
+                <AlertTriangle size={48} />
+              </div>
+              <h3 className="text-3xl font-black text-white mb-3">Reset Library?</h3>
+              <p className="text-slate-400 mb-8 leading-relaxed">
+                This will permanently delete all <span className="text-white font-bold">{words.length} words</span>, 
+                clear your Flashcard progress, and reset Spelling stats. 
+                <span className="block mt-2 font-black text-red-500/80 uppercase text-xs tracking-tighter">This action cannot be undone.</span>
+              </p>
+              <div className="flex gap-4 w-full">
+                <button
+                  onClick={() => setShowClearConfirm(false)}
+                  className="flex-1 py-4 bg-slate-800 hover:bg-slate-700 text-white rounded-2xl font-black transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={clearAll}
+                  className="flex-1 py-4 bg-red-600 hover:bg-red-500 text-white rounded-2xl font-black shadow-lg shadow-red-600/20 transition-all"
+                >
+                  Clear All
                 </button>
               </div>
             </div>
-          );
-        })}
-      </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
