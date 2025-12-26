@@ -1,6 +1,5 @@
-// components/ReaderView.js
 import { useState, useEffect, useRef } from 'react';
-import { Upload, Loader2, X, ChevronLeft, ChevronRight, Volume2, Plus, Info } from 'lucide-react';
+import { Upload, Loader2, X, ChevronLeft, ChevronRight, Volume2, Info } from 'lucide-react';
 import * as pdfjsLib from 'pdfjs-dist';
 import { db } from '../lib/storage';
 import { COMMON_WORDS } from '../lib/constants';
@@ -46,25 +45,33 @@ export default function ReaderView({ settings, loadWords, words }) {
     try {
       const page = await pdfDoc.getPage(pageNum);
       
-      // Calculate scale to fit container width
-      const containerWidth = containerRef.current.clientWidth - 96;
+      // FIX: Responsive Scaling to fit screen
+      const containerWidth = containerRef.current.clientWidth - 48;
+      const containerHeight = containerRef.current.clientHeight - 48;
       const unscaledViewport = page.getViewport({ scale: 1 });
-      const scale = containerWidth / unscaledViewport.width;
+      
+      const scale = Math.min(containerWidth / unscaledViewport.width, containerHeight / unscaledViewport.height);
+      
+      // FIX: Increase devicePixelRatio for clarity (removes blur)
+      const outputScale = window.devicePixelRatio || 1;
       const vp = page.getViewport({ scale });
       setViewport(vp);
 
-      // Render Canvas
       const canvas = canvasRef.current;
       const context = canvas.getContext('2d');
-      canvas.height = vp.height;
-      canvas.width = vp.width;
-      await page.render({ canvasContext: context, viewport: vp }).promise;
+      canvas.width = Math.floor(vp.width * outputScale);
+      canvas.height = Math.floor(vp.height * outputScale);
+      canvas.style.width = Math.floor(vp.width) + "px";
+      canvas.style.height = Math.floor(vp.height) + "px";
 
-      // Extract Text for Interaction
+      const transform = outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] : null;
+
+      await page.render({ canvasContext: context, viewport: vp, transform }).promise;
+
+      // FIX: Improved text layer extraction for proper highlight alignment
       const textContent = await page.getTextContent();
       setTextItems(textContent.items);
       
-      // Analyze words for highlighting
       const pageText = textContent.items.map(item => item.str).join(' ');
       const tokens = pageText.match(/\b[a-zA-Z]{4,}\b/g) || [];
       const newWords = [];
@@ -73,12 +80,11 @@ export default function ReaderView({ settings, loadWords, words }) {
       for (const token of tokens) {
         const lower = token.toLowerCase();
         if (COMMON_WORDS.has(lower)) continue;
-        if (isValidWord(lower)) {
-          if (!allWordsInLib.find(w => w.word === lower)) newWords.push(lower);
+        if (isValidWord(lower) && !allWordsInLib.find(w => w.word === lower)) {
+            newWords.push(lower);
         }
       }
       setHighlightedWords([...new Set(newWords)]);
-
     } catch (err) {
       console.error('Render error:', err);
     } finally {
@@ -103,11 +109,6 @@ export default function ReaderView({ settings, loadWords, words }) {
       }
       setDefinitionPanel(info);
 
-      if (info.audioUrl || info.phonetics?.some(p => p.audio)) {
-        const audio = new Audio(info.audioUrl || info.phonetics.find(p => p.audio).audio);
-        audio.play().catch(() => {});
-      }
-
       if (settings.autoSave && !isRightClick) {
         const exists = await db.vocabulary.where('word').equals(info.word).first();
         if (!exists) {
@@ -122,49 +123,57 @@ export default function ReaderView({ settings, loadWords, words }) {
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#0f172a]">
-      <div ref={containerRef} className="flex-grow p-12 overflow-y-auto scrollbar-hide">
+      {/* Container fits screen and centers PDF */}
+      <div ref={containerRef} className="flex-grow p-6 flex flex-col items-center overflow-y-auto scrollbar-hide">
         {!pdfDoc ? (
-          <div className="max-w-4xl mx-auto mt-20">
+          <div className="w-full max-w-4xl mt-20 text-center">
             <h2 className="text-5xl font-black mb-8 text-white">Advanced PDF Reader</h2>
-            <div className="bg-slate-900 border-2 border-slate-700 rounded-3xl p-12 text-center">
+            <div className="bg-slate-900 border-2 border-slate-700 rounded-3xl p-12">
               <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileUpload} accept=".pdf" />
-              <button onClick={() => fileInputRef.current?.click()} disabled={loading} className="inline-flex items-center gap-4 px-8 py-4 bg-indigo-500 hover:bg-indigo-600 rounded-2xl font-bold text-lg">
-                {loading ? <Loader2 className="animate-spin" /> : <Upload />} Select Scientific Paper
+              <button onClick={() => fileInputRef.current?.click()} disabled={loading} className="inline-flex items-center gap-4 px-8 py-4 bg-indigo-500 hover:bg-indigo-600 rounded-2xl font-bold text-lg text-white">
+                {loading ? <Loader2 className="animate-spin" /> : <Upload />} Select Document
               </button>
             </div>
           </div>
         ) : (
-          <div className="max-w-5xl mx-auto">
-            <div className="flex items-center justify-between mb-8 bg-slate-900/50 p-4 rounded-2xl border border-slate-800">
+          <div className="relative">
+            {/* Controls */}
+            <div className="sticky top-0 z-10 flex items-center justify-between mb-4 bg-slate-900/80 backdrop-blur p-4 rounded-2xl border border-slate-700 w-full">
               <div className="flex items-center gap-4">
-                <h2 className="text-xl font-bold text-white">Page {currentPage} / {totalPages}</h2>
+                <span className="text-white font-bold uppercase tracking-widest text-xs">Page {currentPage} / {totalPages}</span>
                 {showHint && (
-                  <div className="text-xs bg-indigo-500/20 text-indigo-300 px-3 py-1 rounded-lg border border-indigo-500/30">
-                    Click any word to look up
+                  <div className="flex items-center gap-2 bg-indigo-500/20 text-indigo-400 px-3 py-1 rounded-lg border border-indigo-500/30 text-[10px] font-black uppercase">
+                    Right-click to look up <X size={12} className="cursor-pointer" onClick={() => setShowHint(false)} />
                   </div>
                 )}
               </div>
               <div className="flex gap-2">
-                <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} className="p-2 bg-slate-800 hover:bg-slate-700 rounded-lg"><ChevronLeft /></button>
-                <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} className="p-2 bg-slate-800 hover:bg-slate-700 rounded-lg"><ChevronRight /></button>
+                <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} className="p-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg"><ChevronLeft size={16} /></button>
+                <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} className="p-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg"><ChevronRight size={16} /></button>
               </div>
             </div>
 
-            <div className="relative shadow-2xl rounded-sm overflow-hidden bg-white mx-auto" style={{ width: viewport?.width, height: viewport?.height }}>
-              <canvas ref={canvasRef} className="absolute inset-0" />
+            {/* Rendering Area */}
+            <div className="relative shadow-2xl bg-white" style={{ width: viewport?.width, height: viewport?.height }}>
+              <canvas ref={canvasRef} />
               
-              {/* INTERACTIVE TEXT LAYER */}
-              <div className="absolute inset-0 pointer-events-none">
+              {/* RESTORED: Precise interactive layer and original highlighting style */}
+              <div className="absolute inset-0 select-none">
                 {viewport && textItems.map((item, idx) => {
-                  const [a, b, c, d, tx, ty] = item.transform;
-                  const [x, y] = viewport.convertToViewportPoint(tx, ty);
-                  const fontSize = Math.sqrt(a * a + b * b) * viewport.scale;
+                  const tx = pdfjsLib.Util.transform(viewport.transform, item.transform);
+                  const fontSize = Math.sqrt(item.transform[0]**2 + item.transform[1]**2) * viewport.scale;
                   
                   return (
                     <div 
                       key={idx}
-                      className="absolute pointer-events-auto whitespace-pre leading-none flex"
-                      style={{ left: x, top: y - fontSize, fontSize: `${fontSize}px`, height: fontSize, color: 'transparent' }}
+                      className="absolute whitespace-pre leading-none flex"
+                      style={{ 
+                        left: tx[4], 
+                        top: tx[5] - fontSize, 
+                        fontSize: `${fontSize}px`, 
+                        height: fontSize, 
+                        color: 'transparent' 
+                      }}
                     >
                       {item.str.split(/(\s+)/).map((token, tIdx) => {
                         const isWord = /^[a-zA-Z]{3,}$/.test(token);
@@ -173,7 +182,8 @@ export default function ReaderView({ settings, loadWords, words }) {
                           <span 
                             key={tIdx} 
                             onClick={() => isWord && handleWordClick(token)}
-                            className={`${isWord ? 'cursor-pointer hover:bg-indigo-500/30' : ''} ${isHigh ? 'bg-amber-400/20 border-b-2 border-amber-500/40' : ''}`}
+                            onContextMenu={(e) => { e.preventDefault(); if(isWord) handleWordClick(token, true); }}
+                            className={`cursor-pointer ${isHigh ? 'bg-amber-400/20 border-b-2 border-amber-500/50' : 'hover:bg-indigo-500/20'}`}
                           >
                             {token}
                           </span>
@@ -188,21 +198,22 @@ export default function ReaderView({ settings, loadWords, words }) {
         )}
       </div>
 
+      {/* Persistent Side Panel for Definitions */}
       {definitionPanel && (
-        <div className="w-96 bg-slate-950 border-l border-slate-800 p-8 flex flex-col">
+        <div className="w-96 bg-slate-950 border-l border-slate-800 p-8 flex flex-col shadow-2xl animate-in slide-in-from-right duration-300">
           <div className="flex justify-between items-center mb-8">
             <h3 className="text-2xl font-black text-white capitalize">{definitionPanel.word}</h3>
-            <button onClick={() => setDefinitionPanel(null)} className="p-2 hover:bg-slate-800 rounded-xl"><X /></button>
+            <button onClick={() => setDefinitionPanel(null)} className="p-2 hover:bg-slate-800 rounded-xl text-slate-400"><X /></button>
           </div>
           {definitionPanel.loading ? <Loader2 className="animate-spin mx-auto mt-20 text-indigo-500" /> : (
-            <div className="space-y-6">
+            <div className="space-y-8 overflow-y-auto">
               <div>
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Definition</p>
-                <p className="text-slate-200 leading-relaxed">{definitionPanel.definition}</p>
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">Definition</p>
+                <p className="text-slate-200 text-lg leading-relaxed">{definitionPanel.definition}</p>
               </div>
               {definitionPanel.example && (
                 <div>
-                  <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Example</p>
+                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">In Context</p>
                   <p className="text-slate-400 italic">"{definitionPanel.example}"</p>
                 </div>
               )}
