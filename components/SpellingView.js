@@ -177,3 +177,82 @@ export default function SpellingView({ words, settings }) {
               disabled={loadingAudio}
               className="mb-10 p-6 bg-slate-800 hover:bg-blue-600 rounded-3xl transition-all group"
             >
+              {loadingAudio ? (
+                <Loader2 size={48} className="animate-spin text-white" />
+              ) : (
+                <Volume2 size={48} className="text-white group-hover:scale-105" />
+              )}
+            </button>
+
+            <input
+                ref={inputRef}
+                type="text"
+                autoFocus
+                value={userInput}
+                onChange={(e) => setUserInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && (feedback === 'incorrect' ? nextWord() : checkAnswer())}
+                placeholder="Type the word..."
+                disabled={feedback === 'correct'}
+                className="w-full bg-slate-950 border border-slate-800 p-6 rounded-3xl text-3xl text-center font-black text-white outline-none focus:border-blue-500 mb-8 transition-all"
+            />
+
+            {/* Buttons Morphing: Becomes long "Next Word" on error */}
+            <div className="w-full">
+                {feedback === 'incorrect' ? (
+                    <button 
+                        onClick={nextWord} 
+                        className="w-full bg-indigo-600 hover:bg-indigo-500 py-6 rounded-3xl font-black text-white text-xl flex items-center justify-center gap-3 transition-all shadow-xl shadow-indigo-500/20"
+                    >
+                        Next Word <ChevronRight size={24} />
+                    </button>
+                ) : (
+                    <div className="grid grid-cols-2 gap-4">
+                        <button onClick={nextWord} className="bg-slate-800 py-5 rounded-3xl font-black text-white text-base flex items-center justify-center gap-3 hover:bg-slate-700 transition-colors">
+                            <SkipForward size={20} /> Skip Word
+                        </button>
+                        <button onClick={checkAnswer} className="bg-blue-600 py-5 rounded-3xl font-black text-white text-base hover:bg-blue-500 transition-colors shadow-xl shadow-blue-500/20">
+                            Check Spelling
+                        </button>
+                    </div>
+                )}
+            </div>
+        </div>
+
+        {/* Side Feedback Container: Prevents layout pushing */}
+        <div className="w-full lg:w-80 min-h-[300px]">
+          {(feedback === 'incorrect' || feedback === 'correct') && (
+              <div className="bg-slate-900 border border-slate-700 rounded-[2rem] p-8 animate-in slide-in-from-right-4 duration-500 sticky top-8">
+                  <div className="mb-6">
+                      <span className={`text-xs font-black uppercase tracking-[0.2em] ${feedback === 'correct' ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {feedback === 'correct' ? 'Result: Correct' : 'Result: Incorrect'}
+                      </span>
+                  </div>
+                  
+                  {feedback === 'incorrect' && (
+                      <div className="space-y-6">
+                          <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Letter-for-Letter Diff:</p>
+                          <div className="bg-slate-950/50 p-4 rounded-xl border border-slate-800">
+                            {renderComparisonVertical()}
+                          </div>
+                          <div className="pt-6 border-t border-slate-800">
+                              <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mb-2">Target Spelling:</p>
+                              <p className="text-2xl font-black text-white capitalize tracking-wider">{currentWord}</p>
+                          </div>
+                      </div>
+                  )}
+
+                  {feedback === 'correct' && (
+                      <div className="text-center py-6">
+                          <div className="bg-emerald-500/20 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <CheckCircle size={32} className="text-emerald-500" />
+                          </div>
+                          <p className="text-white text-lg font-black">Well Done!</p>
+                      </div>
+                  )}
+              </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
