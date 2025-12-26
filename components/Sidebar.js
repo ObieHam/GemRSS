@@ -1,56 +1,45 @@
-import { LayoutDashboard, Upload, FileText, Brain, Volume2, List, Settings, Menu, X } from 'lucide-react';
+import { BookOpen, Upload, List, FileText, Settings, Menu, X, Brain, Volume2 } from 'lucide-react';
 
 export default function Sidebar({ view, setView, sidebarOpen, setSidebarOpen, onSettingsClick }) {
-  const LOGO_URL = "https://raw.githubusercontent.com/ObieHam/FileIcons/main/Untitled-1.png";
-
-  const menuItems = [
-    { id: 'home', label: 'Home', icon: LayoutDashboard },
-    { id: 'parse', label: 'Parse New PDF', icon: Upload },
-    { id: 'reader', label: 'PDF Reader', icon: FileText },
-    { id: 'flashcards', label: 'Flashcards', icon: Brain },
-    { id: 'spelling', label: 'Spelling Practice', icon: Volume2 },
-    { id: 'browse', label: 'Words and Stats', icon: List },
-  ];
+  const iconSize = 24; // Increased from 20 for better visibility
 
   return (
-    <div className={`fixed top-0 left-0 h-full bg-[#1e293b] border-r border-slate-700/50 transition-all duration-300 z-50 ${sidebarOpen ? 'w-72' : 'w-20'}`}>
-      <div className="p-6 h-full flex flex-col">
-        <div className="flex items-center justify-between mb-10">
+    <div className={`fixed top-0 left-0 h-full bg-slate-950 border-r-2 border-slate-800 transition-all duration-300 z-50 ${sidebarOpen ? 'w-64' : 'w-16'}`}>
+      <div className="p-4">
+        <div className="flex items-center justify-between mb-8">
           {sidebarOpen && (
-            <div className="flex items-center gap-3">
-              <img src={LOGO_URL} alt="Logo" className="w-8 h-8 rounded-lg" />
-              <span className="text-xl font-black tracking-tight text-white">LEXIBUILD</span>
+            <div className="flex items-center gap-2">
+              <div className="bg-indigo-500 p-1.5 rounded-lg">
+                <BookOpen size={20} className="text-white" />
+              </div>
+              <span className="text-lg font-black tracking-tight">LEXIBUILD</span>
             </div>
           )}
-          <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 hover:bg-slate-700/50 rounded-xl transition-colors">
+          <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 hover:bg-slate-800 rounded-lg transition-colors mx-auto">
             {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
         </div>
 
-        <nav className="space-y-2 flex-1">
-          {menuItems.map((item) => (
+        <nav className="space-y-1">
+          {[
+            { id: 'home', label: 'Home', icon: BookOpen },
+            { id: 'parse', label: 'Parse', icon: Upload },
+            { id: 'browse', label: 'Library', icon: List },
+            { id: 'reader', label: 'Reader', icon: FileText },
+            { id: 'flashcards', label: 'Flashcards', icon: Brain },
+            { id: 'spelling', label: 'Spelling', icon: Volume2 },
+          ].map((item) => (
             <button
               key={item.id}
               onClick={() => setView(item.id)}
-              className={`w-full flex items-center gap-4 p-3 rounded-xl transition-all ${
-                view === item.id 
-                ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20' 
-                : 'hover:bg-slate-700/30 text-slate-400'
-              }`}
+              className={`w-full flex items-center ${sidebarOpen ? 'gap-3 p-3' : 'justify-center p-3'} rounded-xl transition-colors ${view === item.id ? 'bg-indigo-500 text-white' : 'hover:bg-slate-800 text-slate-400'}`}
+              title={!sidebarOpen ? item.label : ''}
             >
-              <item.icon size={20} />
-              {sidebarOpen && <span className="font-semibold">{item.label}</span>}
+              <item.icon size={iconSize} />
+              {sidebarOpen && <span className="font-bold text-sm">{item.label}</span>}
             </button>
           ))}
         </nav>
-
-        <button
-          onClick={onSettingsClick}
-          className="flex items-center gap-4 p-3 rounded-xl hover:bg-slate-700/30 text-slate-400 transition-all"
-        >
-          <Settings size={20} />
-          {sidebarOpen && <span className="font-semibold">Settings</span>}
-        </button>
       </div>
     </div>
   );
