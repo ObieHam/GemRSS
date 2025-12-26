@@ -17,7 +17,7 @@ if (typeof window !== 'undefined') {
 }
 
 export default function LexiBuildApp() {
-  const [view, setView] = useState('dashboard');
+  const [view, setView] = useState('home'); // Opens to Dashboard by default
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [words, setWords] = useState([]);
   const [settings, setSettings] = useState(getSettings());
@@ -39,7 +39,6 @@ export default function LexiBuildApp() {
 
   return (
     <div className="flex min-h-screen bg-[#0f172a] text-slate-100 font-sans">
-      {/* Permanent Sidebar */}
       <Sidebar 
         view={view} 
         setView={setView} 
@@ -48,19 +47,18 @@ export default function LexiBuildApp() {
         onSettingsClick={() => setShowSettings(true)}
       />
 
-      {/* Main Content Area */}
       <main className={`flex-1 transition-all duration-300 ${sidebarOpen ? 'ml-72' : 'ml-20'} p-8`}>
-        {view === 'dashboard' && (
+        {view === 'home' && (
           <DashboardView 
             words={words} 
             setView={setView} 
           />
         )}
         {view === 'parse' && <ParseView loadWords={loadWords} settings={settings} />}
-        {view === 'browse' && <BrowseView words={words} loadWords={loadWords} settings={settings} setView={setView} />}
         {view === 'reader' && <ReaderView settings={settings} loadWords={loadWords} words={words} />}
         {view === 'flashcards' && <FlashcardView words={words} settings={settings} />}
         {view === 'spelling' && <SpellingView words={words} settings={settings} />}
+        {view === 'browse' && <BrowseView words={words} loadWords={loadWords} settings={settings} setView={setView} />}
       </main>
 
       {showSettings && (
