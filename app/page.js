@@ -1,3 +1,4 @@
+// app/page.js
 "use client";
 import { useState, useEffect } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
@@ -14,7 +15,6 @@ import FlashcardStatsView from '../components/FlashcardStatsView';
 import SpellingStatsView from '../components/SpellingStatsView';
 import SettingsPanel from '../components/SettingsPanel';
 
-// Fix for PDF Parser: Set the worker source
 if (typeof window !== 'undefined') {
   pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
 }
@@ -38,35 +38,29 @@ export default function LexiBuildApp() {
     saveSettings(newSettings);
   };
 
-  // Determine if main sidebar should be visible
-  const isReaderMode = view === 'reader';
-
   return (
     <div className="flex min-h-screen bg-[#0f172a] text-slate-100 font-sans overflow-hidden">
-      {/* Conditionally render Sidebar based on view mode */}
-      {!isReaderMode && (
-        <Sidebar 
-          view={view} 
-          setView={setView} 
-          sidebarOpen={sidebarOpen} 
-          setSidebarOpen={setSidebarOpen}
-          onSettingsClick={() => setShowSettings(true)}
-        />
-      )}
+      {/* Sidebar is now always rendered */}
+      <Sidebar 
+        view={view} 
+        setView={setView} 
+        sidebarOpen={sidebarOpen} 
+        setSidebarOpen={setSidebarOpen}
+        onSettingsClick={() => setShowSettings(true)}
+      />
 
-      {/* Adjust margin based on view mode */}
-      <main className={`flex-1 transition-all duration-300 ${!isReaderMode ? (sidebarOpen ? 'ml-72' : 'ml-20') : 'ml-0'} ${!isReaderMode ? 'p-8' : 'p-0'} h-screen overflow-hidden`}>
-        {view === 'home' && <DashboardView words={words} setView={setView} />}
-        {view === 'parse' && <ParseView loadWords={loadWords} settings={settings} />}
-        
-        {/* Pass setView to ReaderView so it can provide an exit button */}
-        {view === 'reader' && <ReaderView settings={settings} loadWords={loadWords} words={words} onExit={() => setView('home')} />}
-        
-        {view === 'flashcards' && <FlashcardView words={words} settings={settings} />}
-        {view === 'flashcard-stats' && <FlashcardStatsView words={words} loadWords={loadWords} setView={setView} />}
-        {view === 'spelling' && <SpellingView words={words} settings={settings} />}
-        {view === 'spelling-stats' && <SpellingStatsView words={words} loadWords={loadWords} setView={setView} />}
-        {view === 'browse' && <BrowseView words={words} loadWords={loadWords} settings={settings} setView={setView} />}
+      {/* Main content adjusts padding/margin based on sidebar state */}
+      <main className={`flex-1 transition-all duration-500 ease-in-out ${sidebarOpen ? 'ml-64' : 'ml-16'} h-screen overflow-hidden`}>
+        <div className={`h-full w-full ${view !== 'reader' ? 'p-8 overflow-y-auto' : ''}`}>
+          {view === 'home' && <DashboardView words={words} setView={setView} />}
+          {view === 'parse' && <ParseView loadWords={loadWords} settings={settings} />}
+          {view === 'reader' && <ReaderView settings={settings} loadWords={loadWords} words={words} sidebarOpen={sidebarOpen} />}
+          {view === 'flashcards' && <FlashcardView words={words} settings={settings} />}
+          {view === 'flashcard-stats' && <FlashcardStatsView words={words} loadWords={loadWords} setView={setView} />}
+          {view === 'spelling' && <SpellingView words={words} settings={settings} />}
+          {view === 'spelling-stats' && <SpellingStatsView words={words} loadWords={loadWords} setView={setView} />}
+          {view === 'browse' && <BrowseView words={words} loadWords={loadWords} settings={settings} setView={setView} />}
+        </div>
       </main>
 
       {showSettings && <SettingsPanel settings={settings} updateSettings={updateSettings} onClose={() => setShowSettings(false)} />}
