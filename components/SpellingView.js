@@ -1,14 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
-import { Volume2, CheckCircle, XCircle, RotateCcw, ArrowRight, HelpCircle } from 'lucide-react';
+import { Volume2, CheckCircle, XCircle, SkipForward, Play } from 'lucide-react';
 
 export default function SpellingView({ words, settings }) {
-  const [session, setSession] = useState({
-    active: false,
-    currentIndex: 0,
-    list: [],
-    correct: 0,
-    incorrect: 0
-  });
+  const [session, setSession] = useState({ active: false, currentIndex: 0, list: [], correct: 0, incorrect: 0 });
   const [userInput, setUserInput] = useState("");
   const [feedback, setFeedback] = useState(null); // 'correct', 'incorrect'
   const inputRef = useRef(null);
@@ -21,10 +15,9 @@ export default function SpellingView({ words, settings }) {
     setUserInput("");
   };
 
-  const currentWord = session.list[session.currentIndex]?.word;
+  const currentWord = session.list[session.currentIndex]?.word || "";
 
   const playWord = () => {
-    // Logic from your spelling app's TTS service
     const utterance = new SpeechSynthesisUtterance(currentWord);
     utterance.rate = 0.8;
     window.speechSynthesis.speak(utterance);
@@ -34,7 +27,7 @@ export default function SpellingView({ words, settings }) {
     if (userInput.toLowerCase().trim() === currentWord.toLowerCase()) {
       setFeedback('correct');
       setSession(s => ({ ...s, correct: s.correct + 1 }));
-      setTimeout(nextWord, 1000);
+      setTimeout(nextWord, 1200);
     } else {
       setFeedback('incorrect');
       setSession(s => ({ ...s, incorrect: s.incorrect + 1 }));
@@ -51,18 +44,32 @@ export default function SpellingView({ words, settings }) {
     }
   };
 
-  useEffect(() => {
-    if (session.active && !feedback) playWord();
-  }, [session.currentIndex, session.active]);
+  const renderComparison = () => {
+    const correct = currentWord.toLowerCase();
+    const user = userInput.toLowerCase();
+    const maxLen = Math.max(correct.length, user.length);
+    
+    return (
+      <div className="flex gap-1.5 justify-center font-mono text-2xl mt-8 p-6 bg-slate-950/50 rounded-3xl border border-slate-800">
+        {Array.from({ length: maxLen }).map((_, i) => (
+          <span key={i} className={`px-1 border-b-4 rounded-sm ${user[i] === correct[i] ? 'text-emerald-400 border-emerald-500/30' : 'text-red-400 border-red-500 font-bold'}`}>
+            {user[i] || '_'}
+          </span>
+        ))}
+      </div>
+    );
+  };
 
   if (!session.active) {
     return (
-      <div className="p-12 max-w-4xl mx-auto text-center">
-        <h2 className="text-5xl font-black text-white mb-8">Spelling Trainer</h2>
-        <div className="bg-slate-900 border-2 border-slate-700 rounded-3xl p-12">
-          <p className="text-slate-400 text-xl mb-8">Master your {words.length} saved words through interactive dictation.</p>
-          <button onClick={startPractice} className="bg-indigo-500 hover:bg-indigo-600 px-12 py-5 rounded-2xl font-bold text-xl transition-all">
-            Start Spelling Session
+      <div className="p-8 max-w-5xl mx-auto space-y-12">
+        <header>
+            <h2 className="text-5xl font-black text-white">Spelling Trainer</h2>
+            <p className="text-slate-400 mt-2">Listen to the pronunciation and master the spelling.</p>
+        </header>
+        <div className="bg-[#1e293b] border border-slate-700/50 rounded-[3rem] p-16 text-center">
+          <button onClick={startPractice} className="bg-blue-600 hover:bg-blue-500 px-12 py-5 rounded-3xl font-black text-xl shadow-xl shadow-blue-500/20 transition-all">
+            Start Practice Session
           </button>
         </div>
       </div>
@@ -70,40 +77,53 @@ export default function SpellingView({ words, settings }) {
   }
 
   return (
-    <div className="p-12 max-w-2xl mx-auto">
-      <div className="flex justify-between items-center mb-8">
-        <span className="text-slate-400 font-bold">Word {session.currentIndex + 1} of {session.list.length}</span>
-        <div className="flex gap-4">
-            <span className="text-green-400 font-bold">✓ {session.correct}</span>
-            <span className="text-red-400 font-bold">✗ {session.incorrect}</span>
+    <div className="p-8 max-w-4xl mx-auto space-y-8">
+      <div className="bg-slate-900/50 p-6 rounded-3xl border border-slate-700/30 flex justify-between items-center font-black uppercase text-xs">
+        <span className="text-slate-500">Word {session.currentIndex + 1} of {session.list.length}</span>
+        <div className="flex gap-6">
+            <span className="text-emerald-400">✓ {session.correct}</span>
+            <span className="text-red-400">✗ {session.incorrect}</span>
         </div>
       </div>
 
-      <div className="bg-slate-900 border-2 border-slate-700 rounded-3xl p-12 text-center">
-        <button onClick={playWord} className="mb-8 p-6 bg-slate-800 hover:bg-indigo-500 rounded-2xl transition-all">
-          <Volume2 size={48} />
+      <div className="bg-[#1e293b] border border-slate-700/50 rounded-[3rem] p-16 text-center shadow-2xl relative">
+        <button onClick={playWord} className="mb-10 p-8 bg-slate-800 hover:bg-blue-600 rounded-[2.5rem] transition-all group shadow-xl">
+          <Volume2 size={56} className="text-white group-hover:scale-110 transition-transform" />
         </button>
 
         <input
           ref={inputRef}
           type="text"
+          autoFocus
           value={userInput}
           onChange={(e) => setUserInput(e.target.value)}
-          onKeyPress={(e) => e.key === 'Enter' && checkAnswer()}
+          onKeyDown={(e) => e.key === 'Enter' && checkAnswer()}
           placeholder="Type what you hear..."
-          className="w-full bg-slate-950 border-2 border-slate-800 p-6 rounded-2xl text-2xl text-center outline-none focus:border-indigo-500 mb-6"
+          className="w-full bg-slate-950 border border-slate-800 p-6 rounded-3xl text-3xl text-center font-black text-white outline-none focus:border-blue-500 transition-all placeholder:text-slate-700 mb-6"
         />
 
-        {feedback === 'correct' && <p className="text-green-400 font-bold text-xl mb-4">Perfect!</p>}
         {feedback === 'incorrect' && (
-          <div className="mb-6">
-            <p className="text-red-400 font-bold text-xl mb-2">Not quite.</p>
-            <p className="text-slate-400">Correct spelling: <span className="text-white font-bold">{currentWord}</span></p>
-            <button onClick={nextWord} className="mt-4 text-indigo-400 font-bold">Try Next Word →</button>
+          <div className="animate-in slide-in-from-top-4 duration-300 mb-8">
+             <span className="text-red-400 font-black uppercase text-xs tracking-widest">Correction</span>
+             {renderComparison()}
+             <p className="mt-4 text-slate-400 font-bold">Correct: <span className="text-white">{currentWord}</span></p>
           </div>
         )}
 
-        <button onClick={checkAnswer} className="w-full bg-indigo-500 py-4 rounded-xl font-bold text-lg">Check Spelling</button>
+        {feedback === 'correct' && (
+          <p className="text-emerald-400 font-black text-2xl mb-8 flex items-center justify-center gap-2">
+            <CheckCircle size={28} /> Perfect!
+          </p>
+        )}
+
+        <div className="grid grid-cols-2 gap-4">
+            <button onClick={nextWord} className="bg-slate-800 py-5 rounded-3xl font-black text-white flex items-center justify-center gap-3 hover:bg-slate-700 transition-all">
+                <SkipForward size={24} /> Skip Word
+            </button>
+            <button onClick={checkAnswer} className="bg-blue-600 py-5 rounded-3xl font-black text-white hover:bg-blue-500 transition-all shadow-xl shadow-blue-500/20">
+                Check Answer
+            </button>
+        </div>
       </div>
     </div>
   );
