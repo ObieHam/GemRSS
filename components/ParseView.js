@@ -1,5 +1,6 @@
+// components/ParseView.js
 import { useRef, useState } from 'react';
-import { Upload } from 'lucide-react';
+import { Upload, AlertCircle, CheckCircle2 } from 'lucide-react';
 import * as pdfjsLib from 'pdfjs-dist';
 import { db } from '../lib/storage';
 import { COMMON_WORDS } from '../lib/constants';
@@ -8,12 +9,15 @@ import { fetchDefinition } from '../lib/apiService';
 
 export default function ParseView({ loadWords, settings }) {
   const [status, setStatus] = useState({ loading: false, msg: '', progress: 0, total: 0 });
+  const [addedWords, setAddedWords] = useState([]);
+  const [isRateLimited, setIsRateLimited] = useState(false);
   const fileInputRef = useRef(null);
 
   const processContent = async (text) => {
     const sentences = text.replace(/\n/g, " ").match(/[^.!?]+[.!?]+/g) || [text];
     const allTokens = [];
     const existingWords = await db.vocabulary.toArray();
+    const successfulWords = [];
 
     for (const sentence of sentences) {
       const tokens = sentence.toLowerCase().match(/\b[a-z]{4,}\b/g);
@@ -31,44 +35,59 @@ export default function ParseView({ loadWords, settings }) {
     const total = allTokens.length;
     setStatus({ loading: true, msg: 'Processing words...', progress: 0, total });
 
-    const batchSize = 4; // Changed from 10 to 4
+    const batchSize = 4;
     for (let i = 0; i < allTokens.length; i += batchSize) {
       const batch = allTokens.slice(i, i + batchSize);
-      await Promise.all(
+      
+      const batchResults = await Promise.all(
         batch.map(async ({ word, context }) => {
-          try {
-            const info = await fetchDefinition(word, settings);
-            if (!info.error) {
-              const baseExists = existingWords.find(w => w.word === info.word);
-              if (!baseExists) {
-                await db.vocabulary.add({
-                  ...info,
-                  context: context
-                });
-                existingWords.push({ word: info.word });
-              }
-            }
-          } catch (e) {
-            console.error("Definition fetch error", e);
-          }
+          const info = await fetchDefinition(word, settings);
+          return { word, context, info };
         })
       );
-      setStatus({ loading: true, msg: 'Processing words...', progress: Math.min(i + batchSize, total), total });
+
+      // Check for Rate Limit in batch
+      if (batchResults.some(r => r.info?.rateLimit)) {
+        setIsRateLimited(true);
+        setStatus(prev => ({ ...prev, msg: 'Rate limit hit. Waiting 5 seconds...' }));
+        await new Promise(resolve => setTimeout(resolve, 5000));
+        setIsRateLimited(false);
+        i -= batchSize; // Retry this batch
+        continue;
+      }
+
+      for (const { word, context, info } of batchResults) {
+        if (!info.error) {
+          const baseExists = existingWords.find(w => w.word === info.word);
+          if (!baseExists) {
+            await db.vocabulary.add({ ...info, context });
+            existingWords.push({ word: info.word });
+            successfulWords.push(info.word);
+          }
+        }
+      }
+
+      setStatus({ 
+        loading: true, 
+        msg: 'Processing words...', 
+        progress: Math.min(i + batchSize, total), 
+        total 
+      });
       
-      // Add 500ms delay between batches
       if (i + batchSize < allTokens.length) {
         await new Promise(resolve => setTimeout(resolve, 500));
       }
     }
 
     await loadWords();
+    setAddedWords(successfulWords);
     setStatus({ loading: false, msg: 'Complete!', progress: total, total });
-    setTimeout(() => setStatus({ loading: false, msg: '', progress: 0, total: 0 }), 2000);
   };
 
   const handleFile = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
+    setAddedWords([]);
     setStatus({ loading: true, msg: 'Reading file...', progress: 0, total: 0 });
 
     try {
@@ -76,7 +95,6 @@ export default function ParseView({ loadWords, settings }) {
       if (file.type === "application/pdf") {
         const arrayBuffer = await file.arrayBuffer();
         const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-
         for (let i = 1; i <= pdf.numPages; i++) {
           const page = await pdf.getPage(i);
           const content = await page.getTextContent();
@@ -99,13 +117,7 @@ export default function ParseView({ loadWords, settings }) {
       <p className="text-slate-400 text-lg mb-12">Extract and save all vocabulary from your document</p>
 
       <div className="bg-slate-900 border-2 border-slate-700 rounded-3xl p-12 text-center">
-        <input
-          ref={fileInputRef}
-          type="file"
-          className="hidden"
-          onChange={handleFile}
-          accept=".pdf,.txt"
-        />
+        <input ref={fileInputRef} type="file" className="hidden" onChange={handleFile} accept=".pdf,.txt" />
         <button
           onClick={() => fileInputRef.current?.click()}
           disabled={status.loading}
@@ -116,27 +128,44 @@ export default function ParseView({ loadWords, settings }) {
         </button>
       </div>
 
-      {status.loading && status.total > 0 && (
-        <div className="mt-8 bg-slate-900 border-2 border-indigo-500/30 rounded-3xl p-8">
+      {status.loading && (
+        <div className={`mt-8 bg-slate-900 border-2 ${isRateLimited ? 'border-amber-500' : 'border-indigo-500/30'} rounded-3xl p-8`}>
           <div className="flex items-center justify-between mb-4">
-            <span className="text-white font-bold">{status.msg}</span>
-            <span className="text-indigo-400 font-bold">{Math.round((status.progress / status.total) * 100)}%</span>
+            <span className="flex items-center gap-2 text-white font-bold">
+              {isRateLimited && <AlertCircle className="text-amber-500 animate-pulse" />}
+              {status.msg}
+            </span>
+            <span className="text-indigo-400 font-bold">{status.total > 0 ? Math.round((status.progress / status.total) * 100) : 0}%</span>
           </div>
           <div className="w-full bg-slate-800 rounded-full h-4 overflow-hidden">
             <div
-              className="bg-gradient-to-r from-indigo-500 to-purple-500 h-full transition-all duration-300"
-              style={{ width: `${(status.progress / status.total) * 100}%` }}
+              className={`h-full transition-all duration-300 ${isRateLimited ? 'bg-amber-500' : 'bg-gradient-to-r from-indigo-500 to-purple-500'}`}
+              style={{ width: `${status.total > 0 ? (status.progress / status.total) * 100 : 0}%` }}
             ></div>
           </div>
-          <p className="text-slate-400 text-sm mt-4 text-center">
-            {status.progress} of {status.total} words processed
-          </p>
         </div>
       )}
 
       {!status.loading && status.msg === 'Complete!' && (
-        <div className="mt-8 bg-green-500/10 border-2 border-green-500/30 rounded-3xl p-8 text-center">
-          <p className="text-green-400 font-bold text-xl">✓ Processing Complete!</p>
+        <div className="mt-8 space-y-6">
+          <div className="bg-green-500/10 border-2 border-green-500/30 rounded-3xl p-8 text-center">
+            <CheckCircle2 className="mx-auto text-green-400 mb-4" size={48} />
+            <p className="text-green-400 font-bold text-2xl">Processing Complete!</p>
+            <p className="text-slate-400 mt-2">{addedWords.length} new words added to library</p>
+          </div>
+          
+          {addedWords.length > 0 && (
+            <div className="bg-slate-900 border-2 border-slate-800 rounded-3xl p-8">
+              <h3 className="text-white font-bold text-xl mb-4">Added Words</h3>
+              <div className="flex flex-wrap gap-2 max-h-60 overflow-y-auto pr-4">
+                {addedWords.map((word, idx) => (
+                  <span key={idx} className="px-3 py-1 bg-slate-800 border border-slate-700 rounded-lg text-indigo-300 font-medium">
+                    {word}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
