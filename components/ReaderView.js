@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
-import { Upload, Loader2, X, ChevronLeft, ChevronRight, Volume2, Plus, Info } from 'lucide-react';
+import { Upload, Loader2, X, ChevronLeft, ChevronRight, Volume2, Plus, Minus, LogOut, ZoomIn, ZoomOut } from 'lucide-react';
 import * as pdfjsLib from 'pdfjs-dist';
 import { db } from '../lib/storage';
 import { COMMON_WORDS } from '../lib/constants';
 import { isValidWord } from '../lib/utils';
 import { fetchDefinition } from '../lib/apiService';
 
-export default function ReaderView({ settings, loadWords, words }) {
+export default function ReaderView({ settings, loadWords, onExit }) {
   const [pdfDoc, setPdfDoc] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
@@ -15,11 +15,16 @@ export default function ReaderView({ settings, loadWords, words }) {
   const [highlightedWords, setHighlightedWords] = useState([]);
   const [definitionPanel, setDefinitionPanel] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [showHint, setShowHint] = useState(true);
+  const [scaleFactor, setScaleFactor] = useState(1.0); // Zoom state
 
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
   const fileInputRef = useRef(null);
+
+  // Reset zoom when changing pages
+  useEffect(() => {
+      setScaleFactor(1.0);
+  }, [currentPage]);
 
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
@@ -31,6 +36,7 @@ export default function ReaderView({ settings, loadWords, words }) {
       setPdfDoc(pdf);
       setTotalPages(pdf.numPages);
       setCurrentPage(1);
+      setScaleFactor(1.0);
     } catch (err) {
       console.error(err);
       alert('Error loading PDF');
@@ -40,20 +46,19 @@ export default function ReaderView({ settings, loadWords, words }) {
   };
 
   const renderPage = async (pageNum) => {
-    if (!pdfDoc) return;
+    if (!pdfDoc || !containerRef.current) return;
     setLoading(true);
     try {
       const page = await pdfDoc.getPage(pageNum);
       
-      // Calculate responsive scale to fit side-by-side view
-      const containerWidth = containerRef.current.clientWidth - 64;
-      const containerHeight = containerRef.current.clientHeight - 64;
+      // FIX: Calculate scale based on width to maximize size, then apply zoom factor
+      const containerWidth = containerRef.current.clientWidth - 40; // account for scrollbar/padding
       const unscaledViewport = page.getViewport({ scale: 1 });
-      const scale = Math.min(containerWidth / unscaledViewport.width, containerHeight / unscaledViewport.height);
+      const baseScale = containerWidth / unscaledViewport.width;
+      const finalScale = baseScale * scaleFactor;
       
-      // FIX: Use devicePixelRatio for crisp text on scientific papers
       const outputScale = window.devicePixelRatio || 1;
-      const vp = page.getViewport({ scale: scale });
+      const vp = page.getViewport({ scale: finalScale });
       setViewport(vp);
 
       const canvas = canvasRef.current;
@@ -66,7 +71,7 @@ export default function ReaderView({ settings, loadWords, words }) {
       const transform = outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] : null;
       await page.render({ canvasContext: context, viewport: vp, transform }).promise;
 
-      // Extract Text and match alignment
+      // Extract Text
       const textContent = await page.getTextContent();
       setTextItems(textContent.items);
       
@@ -92,7 +97,8 @@ export default function ReaderView({ settings, loadWords, words }) {
 
   useEffect(() => {
     if (pdfDoc) renderPage(currentPage);
-  }, [pdfDoc, currentPage]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pdfDoc, currentPage, scaleFactor]); // Re-render on zoom change
 
   const playAudio = (info) => {
     if (settings.apiSource === 'free-dictionary' && info.phonetics) {
@@ -117,8 +123,6 @@ export default function ReaderView({ settings, loadWords, words }) {
         return;
       }
       setDefinitionPanel(info);
-      
-      // RESTORED: Automatic pronunciation
       playAudio(info);
 
       if (settings.autoSave && !isRightClick) {
@@ -144,65 +148,47 @@ export default function ReaderView({ settings, loadWords, words }) {
     }
   };
 
+  const changeZoom = (delta) => {
+      setScaleFactor(prev => Math.max(0.5, Math.min(3.0, prev + delta)));
+  };
+
   return (
-    <div className="flex h-screen overflow-hidden bg-[#0f172a]">
-      <div ref={containerRef} className="flex-grow p-6 flex flex-col items-center overflow-y-auto scrollbar-hide">
+    <div className="flex h-screen w-full bg-[#0f172a] relative overflow-hidden">
+      
+      {/* Exit Button */}
+      <button onClick={onExit} className="absolute top-6 left-6 z-50 p-3 bg-slate-900/80 backdrop-blur hover:bg-slate-800 text-slate-300 rounded-xl border border-slate-700 transition-all">
+        <LogOut size={20} />
+      </button>
+
+      {/* Main Reader Container - Maximized space */}
+      <div ref={containerRef} className="flex-grow h-full overflow-auto scrollbar-hide relative flex flex-col items-center py-8">
         {!pdfDoc ? (
-          <div className="w-full max-w-4xl mt-20 text-center">
-            <h2 className="text-5xl font-black mb-8 text-white">Interactive PDF Reader</h2>
-            <div className="bg-slate-900 border-2 border-slate-700 rounded-3xl p-12">
+          <div className="w-full max-w-4xl mt-32 text-center px-4">
+            <h2 className="text-5xl font-black mb-8 text-white">Immersive Reader</h2>
+            <div className="bg-slate-900/50 border-2 border-slate-700/50 backdrop-blur-xl rounded-3xl p-12">
               <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileUpload} accept=".pdf" />
-              <button onClick={() => fileInputRef.current?.click()} disabled={loading} className="inline-flex items-center gap-4 px-8 py-4 bg-indigo-500 hover:bg-indigo-600 rounded-2xl font-bold text-lg text-white transition-all">
-                {loading ? <Loader2 className="animate-spin" /> : <Upload />} Select Scientific Paper
+              <button onClick={() => fileInputRef.current?.click()} disabled={loading} className="inline-flex items-center gap-4 px-10 py-5 bg-indigo-600 hover:bg-indigo-500 rounded-2xl font-bold text-xl text-white transition-all shadow-lg shadow-indigo-600/20">
+                {loading ? <Loader2 className="animate-spin" size={24} /> : <Upload size={24} />} Open PDF Document
               </button>
             </div>
           </div>
         ) : (
-          <div className="relative">
-            {/* Header Controls */}
-            <div className="sticky top-0 z-10 flex items-center justify-between mb-6 bg-slate-900/80 backdrop-blur p-4 rounded-2xl border border-slate-700 w-full shadow-xl">
-              <div className="flex items-center gap-4">
-                <span className="text-white font-black uppercase tracking-widest text-[10px]">Page {currentPage} / {totalPages}</span>
-                {showHint && (
-                  <div className="flex items-center gap-2 bg-indigo-500/20 text-indigo-400 px-3 py-1.5 rounded-xl border border-indigo-500/30 text-[10px] font-black uppercase">
-                    Right-click for no-save lookup <X size={12} className="cursor-pointer ml-1" onClick={() => setShowHint(false)} />
-                  </div>
-                )}
-              </div>
-              <div className="flex gap-2">
-                <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} className="p-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg transition-colors"><ChevronLeft size={18} /></button>
-                <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} className="p-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg transition-colors"><ChevronRight size={18} /></button>
-              </div>
-            </div>
-
+          <>
             {/* Render Area */}
-            <div className="relative shadow-2xl bg-white mx-auto overflow-hidden rounded-sm" style={{ width: viewport?.width, height: viewport?.height }}>
+            <div className="relative shadow-2xl bg-white mx-auto rounded-sm overflow-hidden my-auto" style={{ width: viewport?.width, height: viewport?.height }}>
               <canvas ref={canvasRef} className="block" />
-              
-              {/* Interactive Layer with Precise Alignment */}
               <div className="absolute inset-0 select-none">
                 {viewport && textItems.map((item, idx) => {
                   const tx = pdfjsLib.Util.transform(viewport.transform, item.transform);
                   const fontSize = Math.sqrt(item.transform[0]**2 + item.transform[1]**2) * viewport.scale;
-                  
                   return (
-                    <div 
-                      key={idx}
-                      className="absolute whitespace-pre leading-none flex"
-                      style={{ left: tx[4], top: tx[5] - fontSize, fontSize: `${fontSize}px`, height: fontSize, color: 'transparent' }}
-                    >
+                    <div key={idx} className="absolute whitespace-pre leading-none flex" style={{ left: tx[4], top: tx[5] - fontSize, fontSize: `${fontSize}px`, height: fontSize, color: 'transparent' }}>
                       {item.str.split(/(\s+)/).map((token, tIdx) => {
                         const isWord = /^[a-zA-Z]{3,}$/.test(token);
                         const isHigh = highlightedWords.includes(token.toLowerCase());
                         return (
-                          <span 
-                            key={tIdx} 
-                            onClick={() => isWord && handleWordClick(token)}
-                            onContextMenu={(e) => { e.preventDefault(); if(isWord) handleWordClick(token, true); }}
-                            className={`cursor-pointer transition-colors ${isHigh ? 'bg-amber-400/25 border-b-2 border-amber-500/50 rounded-sm' : 'hover:bg-indigo-500/20'}`}
-                          >
-                            {token}
-                          </span>
+                          <span key={tIdx} onClick={() => isWord && handleWordClick(token)} onContextMenu={(e) => { e.preventDefault(); if(isWord) handleWordClick(token, true); }}
+                            className={`cursor-pointer transition-colors ${isHigh ? 'bg-amber-400/25 border-b-2 border-amber-500/50' : 'hover:bg-indigo-500/20'}`}>{token}</span>
                         );
                       })}
                     </div>
@@ -210,58 +196,78 @@ export default function ReaderView({ settings, loadWords, words }) {
                 })}
               </div>
             </div>
-          </div>
+
+            {/* Floating Bottom Controls Bar */}
+            <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 bg-slate-900/90 backdrop-blur-xl p-2 rounded-full border border-slate-700/50 shadow-2xl">
+              <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-3 hover:bg-slate-800 text-slate-200 rounded-full disabled:opacity-50 transition-all"><ChevronLeft size={20} /></button>
+              <span className="px-4 font-bold text-slate-200 min-w-[100px] text-center">{currentPage} / {totalPages}</span>
+              <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="p-3 hover:bg-slate-800 text-slate-200 rounded-full disabled:opacity-50 transition-all mr-4"><ChevronRight size={20} /></button>
+              
+              <div className="h-6 w-px bg-slate-700"></div>
+
+              {/* Zoom Controls */}
+              <button onClick={() => changeZoom(-0.25)} className="p-3 hover:bg-slate-800 text-slate-200 rounded-full transition-all ml-2"><ZoomOut size={20} /></button>
+              <input 
+                  type="range" 
+                  min="0.5" 
+                  max="3.0" 
+                  step="0.25" 
+                  value={scaleFactor} 
+                  onChange={(e) => setScaleFactor(parseFloat(e.target.value))}
+                  className="w-24 accent-indigo-500"
+              />
+              <button onClick={() => changeZoom(0.25)} className="p-3 hover:bg-slate-800 text-slate-200 rounded-full transition-all"><ZoomIn size={20} /></button>
+            </div>
+          </>
         )}
       </div>
 
-      {/* RESTORED: Definition Sidebar with full features */}
+      {/* Definition Sidebar - Fixed height container with internal scroll */}
       {definitionPanel && (
-        <div className="w-96 bg-slate-950 border-l border-slate-800 p-8 flex flex-col shadow-2xl animate-in slide-in-from-right duration-300">
-          <div className="flex justify-between items-center mb-8">
-            <h3 className="text-2xl font-black text-white capitalize">{definitionPanel.word}</h3>
-            <button onClick={() => setDefinitionPanel(null)} className="p-2 hover:bg-slate-800 rounded-xl text-slate-400"><X /></button>
+        <div className="h-full w-[400px] bg-slate-950/95 backdrop-blur border-l border-slate-800 flex flex-col shadow-2xl z-20 shrink-0">
+          {/* Fixed Header */}
+          <div className="flex justify-between items-start p-8 pb-4 border-b border-slate-800/50 bg-slate-950">
+            <h3 className="text-3xl font-black text-white capitalize break-words max-w-[250px]">{definitionPanel.word}</h3>
+            <button onClick={() => setDefinitionPanel(null)} className="p-2 hover:bg-slate-800 rounded-xl text-slate-400 transition-colors"><X size={24} /></button>
           </div>
           
-          {definitionPanel.loading ? (
-            <div className="flex-grow flex items-center justify-center">
-                <Loader2 className="animate-spin text-indigo-500" size={40} />
-            </div>
-          ) : (
-            <div className="space-y-10 flex-grow flex flex-col">
-              <div className="space-y-6 flex-grow">
+          {/* Scrollable Content Area */}
+          <div className="flex-grow overflow-y-auto p-8 custom-scrollbar relative">
+            {definitionPanel.loading ? (
+              <div className="absolute inset-0 flex items-center justify-center">
+                  <Loader2 className="animate-spin text-indigo-500" size={40} />
+              </div>
+            ) : definitionPanel.error ? (
+               <div className="text-red-400 text-center mt-10 font-medium">{definitionPanel.error}</div>
+            ) : (
+              <div className="space-y-8">
                 <div>
-                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">Definition</p>
-                  <p className="text-slate-200 text-lg leading-relaxed">{definitionPanel.definition}</p>
+                  <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-3">Definition</p>
+                  <p className="text-slate-200 text-lg leading-relaxed font-medium">{definitionPanel.definition}</p>
                 </div>
                 {definitionPanel.example && (
                   <div>
-                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">In Context</p>
-                    <p className="text-slate-400 italic">"{definitionPanel.example}"</p>
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">Example Context</p>
+                    <blockquote className="text-slate-400 italic border-l-2 border-slate-700 pl-4 py-2">"{definitionPanel.example}"</blockquote>
                   </div>
                 )}
               </div>
+            )}
+          </div>
 
-              {/* RESTORED: Add Word and Pronunciation Actions */}
-              <div className="space-y-4 pt-8 border-t border-slate-800/50">
-                <button 
-                  onClick={() => playAudio(definitionPanel)}
-                  className="w-full flex items-center justify-center gap-3 py-4 bg-slate-800 hover:bg-slate-700 rounded-2xl font-bold text-white transition-all border border-slate-700"
-                >
-                  <Volume2 size={20} />
-                  Play Pronunciation
+          {/* Fixed Footer Actions */}
+          {!definitionPanel.loading && !definitionPanel.error && (
+             <div className="p-6 border-t border-slate-800/50 bg-slate-950 space-y-3">
+                <button onClick={() => playAudio(definitionPanel)} className="w-full flex items-center justify-center gap-3 py-4 bg-slate-800 hover:bg-slate-700 rounded-xl font-bold text-white transition-all border border-slate-700">
+                  <Volume2 size={20} /> Play Audio
                 </button>
                 
                 {!settings.autoSave && (
-                  <button 
-                    onClick={addToLibrary}
-                    className="w-full flex items-center justify-center gap-3 py-5 bg-indigo-500 hover:bg-indigo-600 rounded-2xl font-black text-white transition-all shadow-xl shadow-indigo-500/10"
-                  >
-                    <Plus size={20} />
-                    Add to Library
+                  <button onClick={addToLibrary} className="w-full flex items-center justify-center gap-3 py-4 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-black text-white transition-all shadow-lg shadow-indigo-600/20">
+                    <Plus size={20} /> Add to Library
                   </button>
                 )}
               </div>
-            </div>
           )}
         </div>
       )}
