@@ -48,10 +48,19 @@ function PDFPage({ pdfDoc, pageNum, scaleFactor, containerWidth, onWordClick, hi
       <div className="absolute inset-0 select-none">
         {viewport && textItems.map((item, idx) => {
           const tx = pdfjsLib.Util.transform(viewport.transform, item.transform);
-          const fontSize = Math.sqrt(item.transform[0]**2 + item.transform[1]**2) * viewport.scale;
+          const fontSize = Math.sqrt(item.transform[0]**2 + item.transform[1]**2);
+          const scaledFontSize = fontSize * viewport.scale;
+          
           return (
             <div key={idx} className="absolute whitespace-pre leading-none flex" 
-                 style={{ left: tx[4], top: tx[5] - fontSize, fontSize: `${fontSize}px`, height: fontSize, color: 'transparent' }}>
+                 style={{ 
+                   left: `${tx[4]}px`, 
+                   top: `${tx[5]}px`, 
+                   fontSize: `${scaledFontSize}px`, 
+                   height: `${scaledFontSize}px`, 
+                   color: 'transparent',
+                   transform: `scaleY(${item.transform[3] < 0 ? -1 : 1})`
+                 }}>
               {item.str.split(/(\s+)/).map((token, tIdx) => {
                 const lower = token.toLowerCase().replace(/[^a-z]/g, '');
                 const isWord = /^[a-zA-Z]{3,}$/.test(token);
