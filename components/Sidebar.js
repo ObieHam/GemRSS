@@ -1,45 +1,57 @@
-import { BookOpen, Upload, List, FileText, Settings, Menu, X, Brain, Volume2 } from 'lucide-react';
+import { LayoutDashboard, Upload, FileText, Brain, Volume2, List, Settings, Menu, X } from 'lucide-react';
 
 export default function Sidebar({ view, setView, sidebarOpen, setSidebarOpen, onSettingsClick }) {
-  const iconSize = 24; // Increased from 20 for better visibility
+  const LOGO_URL = "https://raw.githubusercontent.com/ObieHam/FileIcons/main/Untitled-1.png";
+
+  const menuItems = [
+    { id: 'home', label: 'Home', icon: LayoutDashboard },
+    { id: 'parse', label: 'Parse New PDF', icon: Upload },
+    { id: 'reader', label: 'PDF Reader', icon: FileText },
+    { id: 'flashcards', label: 'Flashcards', icon: Brain },
+    { id: 'spelling', label: 'Spelling Practice', icon: Volume2 },
+    { id: 'browse', label: 'Words and Stats', icon: List },
+  ];
 
   return (
-    <div className={`fixed top-0 left-0 h-full bg-slate-950 border-r-2 border-slate-800 transition-all duration-300 z-50 ${sidebarOpen ? 'w-64' : 'w-16'}`}>
-      <div className="p-4">
-        <div className="flex items-center justify-between mb-8">
+    <div className={`fixed top-0 left-0 h-full bg-[#1e293b] border-r border-slate-700/50 transition-all duration-300 z-50 ${sidebarOpen ? 'w-64' : 'w-16'}`}>
+      <div className="p-3 h-full flex flex-col">
+        <div className={`flex items-center ${sidebarOpen ? 'justify-between' : 'justify-center'} mb-6`}>
           {sidebarOpen && (
             <div className="flex items-center gap-2">
-              <div className="bg-indigo-500 p-1.5 rounded-lg">
-                <BookOpen size={20} className="text-white" />
-              </div>
-              <span className="text-lg font-black tracking-tight">LEXIBUILD</span>
+              <img src={LOGO_URL} alt="Logo" className="w-6 h-6 rounded" />
+              <span className="text-base font-black tracking-tight text-white uppercase">LEXIBUILD</span>
             </div>
           )}
-          <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 hover:bg-slate-800 rounded-lg transition-colors mx-auto">
-            {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
+          <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-1.5 hover:bg-slate-700/50 rounded-lg transition-colors text-slate-400">
+            {sidebarOpen ? <X size={18} /> : <Menu size={24} className="text-indigo-400" />}
           </button>
         </div>
 
-        <nav className="space-y-1">
-          {[
-            { id: 'home', label: 'Home', icon: BookOpen },
-            { id: 'parse', label: 'Parse', icon: Upload },
-            { id: 'browse', label: 'Library', icon: List },
-            { id: 'reader', label: 'Reader', icon: FileText },
-            { id: 'flashcards', label: 'Flashcards', icon: Brain },
-            { id: 'spelling', label: 'Spelling', icon: Volume2 },
-          ].map((item) => (
+        <nav className="space-y-1 flex-1">
+          {menuItems.map((item) => (
             <button
               key={item.id}
               onClick={() => setView(item.id)}
-              className={`w-full flex items-center ${sidebarOpen ? 'gap-3 p-3' : 'justify-center p-3'} rounded-xl transition-colors ${view === item.id ? 'bg-indigo-500 text-white' : 'hover:bg-slate-800 text-slate-400'}`}
+              className={`w-full flex items-center ${sidebarOpen ? 'gap-3 p-2.5' : 'justify-center p-2.5'} rounded-lg transition-all ${
+                view === item.id 
+                ? 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/20' 
+                : 'hover:bg-slate-700/30 text-slate-400'
+              }`}
               title={!sidebarOpen ? item.label : ''}
             >
-              <item.icon size={iconSize} />
-              {sidebarOpen && <span className="font-bold text-sm">{item.label}</span>}
+              <item.icon size={sidebarOpen ? 18 : 24} />
+              {sidebarOpen && <span className="text-sm font-semibold">{item.label}</span>}
             </button>
           ))}
         </nav>
+
+        <button
+          onClick={onSettingsClick}
+          className={`flex items-center ${sidebarOpen ? 'gap-3 p-2.5' : 'justify-center p-2.5'} rounded-lg hover:bg-slate-700/30 text-slate-400 transition-all`}
+        >
+          <Settings size={sidebarOpen ? 18 : 24} />
+          {sidebarOpen && <span className="text-sm font-semibold">Settings</span>}
+        </button>
       </div>
     </div>
   );
