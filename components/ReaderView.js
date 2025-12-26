@@ -43,7 +43,7 @@ function PDFPage({ pdfDoc, pageNum, scaleFactor, containerWidth, onWordClick, hi
   }, [pdfDoc, pageNum, scaleFactor, containerWidth]);
 
   return (
-    <div className="relative shadow-2xl bg-white mb-10 mx-auto transition-all duration-500 ease-in-out" style={{ width: viewport?.width, height: viewport?.height }}>
+    <div className="relative shadow-2xl bg-white mb-10 mx-auto" style={{ width: viewport?.width, height: viewport?.height }}>
       <canvas ref={canvasRef} className="block" />
       <div className="absolute inset-0 select-none">
         {viewport && textItems.map((item, idx) => {
@@ -58,8 +58,7 @@ function PDFPage({ pdfDoc, pageNum, scaleFactor, containerWidth, onWordClick, hi
                    top: `${tx[5]}px`, 
                    fontSize: `${scaledFontSize}px`, 
                    height: `${scaledFontSize}px`, 
-                   color: 'transparent',
-                   transform: `scaleY(${item.transform[3] < 0 ? -1 : 1})`
+                   color: 'transparent'
                  }}>
               {item.str.split(/(\s+)/).map((token, tIdx) => {
                 const lower = token.toLowerCase().replace(/[^a-z]/g, '');
