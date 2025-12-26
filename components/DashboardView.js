@@ -13,6 +13,13 @@ export default function DashboardView({ words, setView }) {
     loadStats();
   }, [words]);
 
+  const actionCards = [
+    { id: 'parse', label: 'Parse New PDF', desc: 'Extract vocabulary', icon: Upload, color: 'bg-indigo-600 hover:bg-indigo-500' },
+    { id: 'reader', label: 'PDF Reader', desc: 'Read interactively', icon: FileText, color: 'bg-pink-600 hover:bg-pink-500' },
+    { id: 'flashcards', label: 'Flashcard Session', desc: 'Review due cards', icon: Brain, color: 'bg-emerald-600 hover:bg-emerald-500' },
+    { id: 'spelling', label: 'Spelling Practice', desc: 'Master typing', icon: Volume2, color: 'bg-blue-600 hover:bg-blue-500' },
+  ];
+
   return (
     <div className="max-w-6xl mx-auto space-y-12 animate-in fade-in duration-500">
       <header>
@@ -20,46 +27,19 @@ export default function DashboardView({ words, setView }) {
         <p className="text-slate-400">Ready to expand your vocabulary today?</p>
       </header>
 
-      {/* Primary Action Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* PDF Section (Split) */}
-        <div className="flex flex-col gap-4">
+      {/* Primary Action Grid - 4 Equal Buttons */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        {actionCards.map((card) => (
           <button
-            onClick={() => setView('parse')}
-            className="flex-1 bg-indigo-600 hover:bg-indigo-500 p-8 rounded-[2.5rem] flex flex-col items-center justify-center text-center transition-all hover:scale-[1.02] shadow-xl shadow-indigo-500/10"
+            key={card.id}
+            onClick={() => setView(card.id)}
+            className={`${card.color} p-8 rounded-[2.5rem] flex flex-col items-center justify-center text-center transition-all hover:scale-[1.02] shadow-xl aspect-square`}
           >
-            <Upload size={48} className="text-white mb-4" />
-            <h3 className="text-xl font-bold text-white">Parse a New PDF</h3>
-            <p className="text-indigo-100/70 text-sm mt-2">Extract new vocabulary words</p>
+            <card.icon size={48} className="text-white mb-4" />
+            <h3 className="text-xl font-bold text-white leading-tight">{card.label}</h3>
+            <p className="text-white/70 text-sm mt-2">{card.desc}</p>
           </button>
-          <button
-            onClick={() => setView('reader')}
-            className="bg-slate-800 hover:bg-slate-700 p-6 rounded-[2rem] flex items-center justify-center gap-3 transition-all hover:scale-[1.02]"
-          >
-            <FileText size={24} className="text-indigo-400" />
-            <span className="font-bold">PDF Reader</span>
-          </button>
-        </div>
-
-        {/* Flashcard Section */}
-        <button
-          onClick={() => setView('flashcards')}
-          className="bg-emerald-600 hover:bg-emerald-500 p-8 rounded-[2.5rem] flex flex-col items-center justify-center text-center transition-all hover:scale-[1.02] shadow-xl shadow-emerald-500/10"
-        >
-          <Brain size={48} className="text-white mb-4" />
-          <h3 className="text-xl font-bold text-white">Start Flashcard Session</h3>
-          <p className="text-emerald-100/70 text-sm mt-2">Review due cards in your library</p>
-        </button>
-
-        {/* Spelling Section */}
-        <button
-          onClick={() => setView('spelling')}
-          className="bg-blue-600 hover:bg-blue-500 p-8 rounded-[2.5rem] flex flex-col items-center justify-center text-center transition-all hover:scale-[1.02] shadow-xl shadow-blue-500/10"
-        >
-          <Volume2 size={48} className="text-white mb-4" />
-          <h3 className="text-xl font-bold text-white">Practice Spelling</h3>
-          <p className="text-blue-100/70 text-sm mt-2">Master your pronunciation and typing</p>
-        </button>
+        ))}
       </div>
 
       {/* Unified Stats Area */}
@@ -81,7 +61,7 @@ export default function DashboardView({ words, setView }) {
             </div>
             <div>
               <p className="text-slate-400 text-sm font-semibold uppercase tracking-wider">Total Vocabulary</p>
-              <p className="text-3xl font-black text-white">{words.length} <span className="text-lg font-normal text-slate-500">words</span></p>
+              <p className="text-3xl font-black text-white">{words.length}</p>
             </div>
           </div>
 
@@ -91,7 +71,7 @@ export default function DashboardView({ words, setView }) {
             </div>
             <div>
               <p className="text-slate-400 text-sm font-semibold uppercase tracking-wider">Flashcards Due</p>
-              <p className="text-3xl font-black text-white">{fcStats?.dueToday || 0} <span className="text-lg font-normal text-slate-500">cards</span></p>
+              <p className="text-3xl font-black text-white">{fcStats?.dueToday || 0}</p>
             </div>
           </div>
 
