@@ -1,1 +1,12 @@
+/* Update app/globals.css */
 @import "tailwindcss";
+
+@theme {
+  /* Scale down the entire UI slightly */
+  --spacing-12: 2rem;  /* Reduced from 3rem */
+  --spacing-8: 1.5rem; /* Reduced from 2rem */
+}
+
+.container {
+  max-width: 1000px !important; /* Make main containers more compact */
+}
