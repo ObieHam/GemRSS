@@ -23,8 +23,8 @@ export default function DashboardView({ words, setView }) {
   return (
     <div className="max-w-6xl mx-auto space-y-12 animate-in fade-in duration-500">
       <header>
-        <h1 className="text-4xl font-bold text-white mb-2">Welcome back!</h1>
-        <p className="text-slate-400">Ready to expand your vocabulary today?</p>
+        <h1 className="text-5xl font-black text-white mb-2">Welcome back!</h1>
+        <p className="text-slate-400 text-lg">Ready to expand your vocabulary today?</p>
       </header>
 
       {/* Primary Action Grid - 4 Equal Buttons */}
@@ -43,19 +43,19 @@ export default function DashboardView({ words, setView }) {
       </div>
 
       {/* Unified Stats Area */}
-      <div className="bg-[#1e293b] border border-slate-700/50 rounded-[2.5rem] p-10">
+      <div className="bg-[#1e293b] border-2 border-slate-700/50 rounded-[2.5rem] p-10 shadow-xl">
         <div className="flex items-center justify-between mb-8">
-          <h2 className="text-2xl font-bold text-white">Learning Progress</h2>
+          <h2 className="text-3xl font-black text-white">Learning Progress</h2>
           <button 
             onClick={() => setView('browse')}
-            className="px-6 py-2 bg-slate-700 hover:bg-slate-600 rounded-full text-sm font-bold transition-all"
+            className="px-6 py-2.5 bg-slate-700 hover:bg-slate-600 rounded-full text-sm font-bold transition-all"
           >
             Detailed Stats
           </button>
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          <div className="flex items-center gap-6 p-6 bg-slate-800/40 rounded-3xl">
+          <div className="flex items-center gap-6 p-6 bg-slate-800/40 rounded-3xl border-2 border-slate-700/30">
             <div className="bg-indigo-500/20 p-4 rounded-2xl text-indigo-400">
               <BookOpen size={32} />
             </div>
@@ -65,7 +65,7 @@ export default function DashboardView({ words, setView }) {
             </div>
           </div>
 
-          <div className="flex items-center gap-6 p-6 bg-slate-800/40 rounded-3xl">
+          <div className="flex items-center gap-6 p-6 bg-slate-800/40 rounded-3xl border-2 border-slate-700/30">
             <div className="bg-emerald-500/20 p-4 rounded-2xl text-emerald-400">
               <Clock size={32} />
             </div>
@@ -75,7 +75,7 @@ export default function DashboardView({ words, setView }) {
             </div>
           </div>
 
-          <div className="flex items-center gap-6 p-6 bg-slate-800/40 rounded-3xl">
+          <div className="flex items-center gap-6 p-6 bg-slate-800/40 rounded-3xl border-2 border-slate-700/30">
             <div className="bg-blue-500/20 p-4 rounded-2xl text-blue-400">
               <Target size={32} />
             </div>
