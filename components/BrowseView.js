@@ -57,12 +57,12 @@ export default function BrowseView({ words, loadWords, settings, setView }) {
       {/* Header & Management Actions */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-black text-white">Library Management</h2>
-          <p className="text-slate-400 text-sm">Manage your {words.length} saved words</p>
+          <h2 className="text-4xl font-black text-white">Library Management</h2>
+          <p className="text-slate-400 text-lg mt-1">Manage your {words.length} saved words</p>
         </div>
         <button
           onClick={() => setShowClearConfirm(true)}
-          className="flex items-center gap-2 px-5 py-2.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 rounded-xl font-bold text-sm transition-all"
+          className="flex items-center gap-2 px-6 py-3 bg-red-500/10 hover:bg-red-500/20 border-2 border-red-500/30 text-red-400 rounded-2xl font-bold text-sm transition-all"
         >
           <Trash2 size={18} />
           Reset Library
@@ -73,10 +73,10 @@ export default function BrowseView({ words, loadWords, settings, setView }) {
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         <button 
           onClick={() => setView('flashcard-stats')}
-          className="bg-[#1e293b] border border-slate-700/50 p-4 rounded-2xl flex items-center justify-between group hover:border-indigo-500/50 transition-all"
+          className="bg-[#1e293b] border-2 border-slate-700/50 p-5 rounded-[2rem] flex items-center justify-between group hover:border-indigo-500/50 transition-all"
         >
           <div>
-            <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest">Flashcard Stats</p>
+            <p className="text-slate-500 text-xs font-black uppercase tracking-widest">Flashcard Stats</p>
             <p className="text-lg font-bold text-white">View Progress</p>
           </div>
           <ExternalLink size={18} className="text-slate-600 group-hover:text-indigo-400 transition-colors" />
@@ -84,21 +84,21 @@ export default function BrowseView({ words, loadWords, settings, setView }) {
 
         <button 
           onClick={() => setView('spelling-stats')}
-          className="bg-[#1e293b] border border-slate-700/50 p-4 rounded-2xl flex items-center justify-between group hover:border-blue-500/50 transition-all"
+          className="bg-[#1e293b] border-2 border-slate-700/50 p-5 rounded-[2rem] flex items-center justify-between group hover:border-blue-500/50 transition-all"
         >
           <div>
-            <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest">Spelling Stats</p>
+            <p className="text-slate-500 text-xs font-black uppercase tracking-widest">Spelling Stats</p>
             <p className="text-lg font-bold text-white">View Accuracy</p>
           </div>
           <ExternalLink size={18} className="text-slate-600 group-hover:text-blue-400 transition-colors" />
         </button>
 
-        <div className="hidden md:flex bg-[#1e293b] border border-slate-700/50 p-4 rounded-2xl items-center gap-3">
+        <div className="hidden md:flex bg-[#1e293b] border-2 border-slate-700/50 p-5 rounded-[2rem] items-center gap-3">
           <div className="bg-indigo-500/20 p-2 rounded-lg text-indigo-400">
             <BookOpen size={20} />
           </div>
           <div>
-            <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest">Total</p>
+            <p className="text-slate-500 text-xs font-black uppercase tracking-widest">Total</p>
             <p className="text-lg font-bold text-white">{words.length} Words</p>
           </div>
         </div>
@@ -110,13 +110,13 @@ export default function BrowseView({ words, loadWords, settings, setView }) {
         <input
           type="text"
           placeholder="Search vocabulary..."
-          className="w-full bg-slate-900 border border-slate-700/50 focus:border-indigo-500/50 pl-12 pr-6 py-3.5 rounded-2xl outline-none transition-all text-white placeholder-slate-600"
+          className="w-full bg-slate-900 border-2 border-slate-700/50 focus:border-indigo-500/50 pl-12 pr-6 py-4 rounded-2xl outline-none transition-all text-white placeholder-slate-600"
           onChange={(e) => setSearch(e.target.value)}
         />
       </div>
 
       {/* Word List Table Style */}
-      <div className="bg-[#1e293b] border border-slate-700/50 rounded-3xl overflow-hidden shadow-xl">
+      <div className="bg-[#1e293b] border-2 border-slate-700/50 rounded-3xl overflow-hidden shadow-xl">
         {filtered.length === 0 ? (
           <div className="p-12 text-center text-slate-500">
             <BookOpen size={40} className="mx-auto mb-4 opacity-20" />
