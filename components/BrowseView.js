@@ -1,258 +1,189 @@
-import { useState, useEffect, useRef } from 'react';
-import { Volume2, CheckCircle, SkipForward, ChevronRight, Loader2 } from 'lucide-react';
-import { spellingDb } from '../lib/spellingStorage';
+import { useState } from 'react';
+import { Search, Trash2, Volume2, AlertTriangle, BookOpen, ExternalLink } from 'lucide-react';
+import { db } from '../lib/storage';
 
-export default function SpellingView({ words, settings }) {
-  const [session, setSession] = useState({ 
-    active: false, 
-    currentIndex: 0, 
-    list: [], 
-    correct: 0, 
-    incorrect: 0 
-  });
-  const [userInput, setUserInput] = useState("");
-  const [feedback, setFeedback] = useState(null); // 'correct', 'incorrect'
-  const [audioCache, setAudioCache] = useState({});
-  const [loadingAudio, setLoadingAudio] = useState(false);
-  const inputRef = useRef(null);
+export default function BrowseView({ words, loadWords, settings, setView }) {
+  const [search, setSearch] = useState("");
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
 
-  // Auto-play sound when word changes and preload the next word in the list
-  useEffect(() => {
-    if (session.active && session.list[session.currentIndex]) {
-      const current = session.list[session.currentIndex].word;
-      playWord(current);
-      preloadNext();
-    }
-  }, [session.currentIndex, session.active]);
-
-  const startPractice = () => {
-    if (words.length === 0) return alert("Add words to your library first!");
-    // Shuffle words for the session
-    const shuffled = [...words].sort(() => Math.random() - 0.5);
-    setSession({ 
-      active: true, 
-      currentIndex: 0, 
-      list: shuffled, 
-      correct: 0, 
-      incorrect: 0 
-    });
-    setFeedback(null);
-    setUserInput("");
-    setAudioCache({});
-  };
-
-  const currentWord = session.list[session.currentIndex]?.word || "";
-
-  // Helper to fetch audio from the TTS API
-  const fetchAudio = async (word) => {
-    if (audioCache[word]) return audioCache[word];
-    try {
-      const response = await fetch('/api/speak', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ word })
-      });
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = URL.createObjectURL(blob);
-        setAudioCache(prev => ({ ...prev, [word]: url }));
-        return url;
+  const playAudio = (wordObj) => {
+    if (settings.apiSource === 'free-dictionary') {
+      const accentMap = { us: '-us', uk: '-uk', au: '-au' };
+      const preferredAudio = wordObj.phonetics?.find(p => 
+        p.audio && p.audio.includes(accentMap[settings.accent])
+      );
+      const audioUrl = preferredAudio?.audio || wordObj.phonetics?.find(p => p.audio)?.audio;
+      
+      if (audioUrl) {
+        new Audio(audioUrl).play().catch(e => console.error("Audio play failed", e));
       }
-    } catch (e) {
-      console.error("TTS fetch failed", e);
+    } else if (wordObj.audioUrl) {
+      new Audio(wordObj.audioUrl).play().catch(e => console.error("Audio play failed", e));
     }
-    return null;
   };
 
-  const playWord = async (word) => {
-    setLoadingAudio(true);
-    const url = await fetchAudio(word);
+  const deleteWord = async (id) => {
+    await db.vocabulary.delete(id);
+    await loadWords();
+  };
+
+  const clearAll = async () => {
+    // 1. Clear the primary vocabulary database
+    await db.vocabulary.clear();
     
-    if (url) {
-      const audio = new Audio(url);
-      audio.play().catch(() => playFallback(word));
-    } else {
-      playFallback(word);
+    // 2. Clear performance data for both Flashcards and Spelling
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('flashcardReviews');
+      localStorage.removeItem('spellingReviews');
+      
+      // 3. Clear any cached dictionary definitions
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('dict_')) {
+          localStorage.removeItem(key);
+        }
+      });
     }
-    setLoadingAudio(false);
-  };
-
-  const playFallback = (word) => {
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(word);
-    utterance.rate = 0.85;
-    window.speechSynthesis.speak(utterance);
-  };
-
-  const preloadNext = () => {
-    const nextIdx = session.currentIndex + 1;
-    if (nextIdx < session.list.length) {
-      fetchAudio(session.list[nextIdx].word);
-    }
-  };
-
-  const checkAnswer = () => {
-    const isCorrect = userInput.toLowerCase().trim() === currentWord.toLowerCase();
-    const wordId = session.list[session.currentIndex].id;
-
-    if (isCorrect) {
-      setFeedback('correct');
-      // FSRS: Map correct spelling to "Good" (2)
-      spellingDb.recordResult(wordId, 2); 
-      setSession(s => ({ ...s, correct: s.correct + 1 }));
-      // Transition automatically on success
-      setTimeout(nextWord, 1000);
-    } else {
-      setFeedback('incorrect');
-      // FSRS: Map incorrect spelling to "Again" (0)
-      spellingDb.recordResult(wordId, 0);
-      setSession(s => ({ ...s, incorrect: s.incorrect + 1 }));
-    }
-  };
-
-  const nextWord = () => {
-    if (session.currentIndex + 1 < session.list.length) {
-      setSession(s => ({ ...s, currentIndex: s.currentIndex + 1 }));
-      setFeedback(null);
-      setUserInput("");
-      setTimeout(() => inputRef.current?.focus(), 50);
-    } else {
-      setSession(s => ({ ...s, active: false }));
-    }
-  };
-
-  // Vertical stack: User's typed letters on top, target letters on bottom
-  const renderComparisonVertical = () => {
-    const correct = currentWord.toLowerCase();
-    const user = userInput.toLowerCase();
-    const maxLen = Math.max(correct.length, user.length);
     
-    return (
-      <div className="flex flex-wrap gap-2 justify-start font-mono text-xl">
-        {Array.from({ length: maxLen }).map((_, i) => (
-          <div key={i} className="flex flex-col items-center min-w-[1.2rem]">
-            <span className={`${user[i] === correct[i] ? 'text-emerald-400' : 'text-red-400 font-black border-b-2 border-red-500'}`}>
-              {user[i] || '_'}
-            </span>
-            <span className="text-slate-500 text-xs mt-1">
-              {correct[i] || '_'}
-            </span>
-          </div>
-        ))}
-      </div>
-    );
+    await loadWords();
+    setShowClearConfirm(false);
   };
 
-  if (!session.active) {
-    return (
-      <div className="p-8 max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500">
-        <header>
-            <h2 className="text-4xl font-black text-white">Spelling Trainer</h2>
-            <p className="text-slate-400">Master your vocabulary through dictation and the FSRS algorithm.</p>
-        </header>
-        <div className="bg-[#1e293b] border border-slate-700/50 rounded-3xl p-12 text-center shadow-2xl">
-          <button onClick={startPractice} className="bg-blue-600 hover:bg-blue-500 px-12 py-5 rounded-2xl font-black text-xl shadow-lg shadow-blue-500/20 transition-all">
-            Start Practice Session
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const filtered = words.filter(w => 
+    w.word && w.word.toLowerCase().includes(search.toLowerCase())
+  );
 
   return (
-    <div className="p-8 max-w-6xl mx-auto space-y-6">
-      <div className="bg-slate-900/50 p-6 rounded-2xl border border-slate-700/30 flex justify-between items-center font-black uppercase text-[10px] tracking-widest">
-        <span className="text-slate-500">Word {session.currentIndex + 1} / {session.list.length}</span>
-        <div className="flex gap-6">
-            <span className="text-emerald-400">Correct: {session.correct}</span>
-            <span className="text-red-400">Incorrect: {session.incorrect}</span>
+    <div className="p-4 max-w-5xl mx-auto space-y-6 animate-in fade-in duration-500">
+      {/* Header & Management Actions */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-3xl font-black text-white">Library Management</h2>
+          <p className="text-slate-400 text-sm">Manage your {words.length} saved words</p>
+        </div>
+        <button
+          onClick={() => setShowClearConfirm(true)}
+          className="flex items-center gap-2 px-5 py-2.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 rounded-xl font-bold text-sm transition-all"
+        >
+          <Trash2 size={18} />
+          Reset Library
+        </button>
+      </div>
+
+      {/* Quick Access Stats Row (Compact) */}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+        <button 
+          onClick={() => setView('flashcard-stats')}
+          className="bg-[#1e293b] border border-slate-700/50 p-4 rounded-2xl flex items-center justify-between group hover:border-indigo-500/50 transition-all"
+        >
+          <div>
+            <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest">Flashcard Stats</p>
+            <p className="text-lg font-bold text-white">View Progress</p>
+          </div>
+          <ExternalLink size={18} className="text-slate-600 group-hover:text-indigo-400 transition-colors" />
+        </button>
+
+        <button 
+          onClick={() => setView('spelling-stats')}
+          className="bg-[#1e293b] border border-slate-700/50 p-4 rounded-2xl flex items-center justify-between group hover:border-blue-500/50 transition-all"
+        >
+          <div>
+            <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest">Spelling Stats</p>
+            <p className="text-lg font-bold text-white">View Accuracy</p>
+          </div>
+          <ExternalLink size={18} className="text-slate-600 group-hover:text-blue-400 transition-colors" />
+        </button>
+
+        <div className="hidden md:flex bg-[#1e293b] border border-slate-700/50 p-4 rounded-2xl items-center gap-3">
+          <div className="bg-indigo-500/20 p-2 rounded-lg text-indigo-400">
+            <BookOpen size={20} />
+          </div>
+          <div>
+            <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest">Total</p>
+            <p className="text-lg font-bold text-white">{words.length} Words</p>
+          </div>
         </div>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-8 items-start">
-        {/* Main Practice Hub */}
-        <div className="flex-1 bg-[#1e293b] border border-slate-700/50 rounded-[2.5rem] p-12 text-center shadow-2xl w-full">
-            <button 
-              onClick={() => playWord(currentWord)} 
-              disabled={loadingAudio}
-              className="mb-10 p-6 bg-slate-800 hover:bg-blue-600 rounded-3xl transition-all group"
-            >
-              {loadingAudio ? (
-                <Loader2 size={48} className="animate-spin text-white" />
-              ) : (
-                <Volume2 size={48} className="text-white group-hover:scale-105" />
-              )}
-            </button>
+      {/* Search Input */}
+      <div className="relative">
+        <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+        <input
+          type="text"
+          placeholder="Search vocabulary..."
+          className="w-full bg-slate-900 border border-slate-700/50 focus:border-indigo-500/50 pl-12 pr-6 py-3.5 rounded-2xl outline-none transition-all text-white placeholder-slate-600"
+          onChange={(e) => setSearch(e.target.value)}
+        />
+      </div>
 
-            <input
-                ref={inputRef}
-                type="text"
-                autoFocus
-                value={userInput}
-                onChange={(e) => setUserInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && (feedback === 'incorrect' ? nextWord() : checkAnswer())}
-                placeholder="Type the word..."
-                disabled={feedback === 'correct'}
-                className="w-full bg-slate-950 border border-slate-800 p-6 rounded-3xl text-3xl text-center font-black text-white outline-none focus:border-blue-500 mb-8 transition-all"
-            />
-
-            {/* Buttons Morphing: Becomes long "Next Word" on error */}
-            <div className="w-full">
-                {feedback === 'incorrect' ? (
-                    <button 
-                        onClick={nextWord} 
-                        className="w-full bg-indigo-600 hover:bg-indigo-500 py-6 rounded-3xl font-black text-white text-xl flex items-center justify-center gap-3 transition-all shadow-xl shadow-indigo-500/20"
-                    >
-                        Next Word <ChevronRight size={24} />
-                    </button>
-                ) : (
-                    <div className="grid grid-cols-2 gap-4">
-                        <button onClick={nextWord} className="bg-slate-800 py-5 rounded-3xl font-black text-white text-base flex items-center justify-center gap-3 hover:bg-slate-700 transition-colors">
-                            <SkipForward size={20} /> Skip Word
-                        </button>
-                        <button onClick={checkAnswer} className="bg-blue-600 py-5 rounded-3xl font-black text-white text-base hover:bg-blue-500 transition-colors shadow-xl shadow-blue-500/20">
-                            Check Spelling
-                        </button>
-                    </div>
-                )}
-            </div>
-        </div>
-
-        {/* Side Feedback Container: Prevents layout pushing */}
-        <div className="w-full lg:w-80 min-h-[300px]">
-          {(feedback === 'incorrect' || feedback === 'correct') && (
-              <div className="bg-slate-900 border border-slate-700 rounded-[2rem] p-8 animate-in slide-in-from-right-4 duration-500 sticky top-8">
-                  <div className="mb-6">
-                      <span className={`text-xs font-black uppercase tracking-[0.2em] ${feedback === 'correct' ? 'text-emerald-400' : 'text-red-400'}`}>
-                          {feedback === 'correct' ? 'Result: Correct' : 'Result: Incorrect'}
-                      </span>
-                  </div>
-                  
-                  {feedback === 'incorrect' && (
-                      <div className="space-y-6">
-                          <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Letter-for-Letter Diff:</p>
-                          <div className="bg-slate-950/50 p-4 rounded-xl border border-slate-800">
-                            {renderComparisonVertical()}
-                          </div>
-                          <div className="pt-6 border-t border-slate-800">
-                              <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mb-2">Target Spelling:</p>
-                              <p className="text-2xl font-black text-white capitalize tracking-wider">{currentWord}</p>
-                          </div>
-                      </div>
-                  )}
-
-                  {feedback === 'correct' && (
-                      <div className="text-center py-6">
-                          <div className="bg-emerald-500/20 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <CheckCircle size={32} className="text-emerald-500" />
-                          </div>
-                          <p className="text-white text-lg font-black">Well Done!</p>
-                      </div>
-                  )}
+      {/* Word List Table Style */}
+      <div className="bg-[#1e293b] border border-slate-700/50 rounded-3xl overflow-hidden shadow-xl">
+        {filtered.length === 0 ? (
+          <div className="p-12 text-center text-slate-500">
+            <BookOpen size={40} className="mx-auto mb-4 opacity-20" />
+            <p className="font-medium text-lg">No words found in library</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-slate-800/50">
+            {filtered.map((w) => (
+              <div key={w.id} className="p-5 hover:bg-slate-800/30 transition-colors flex items-center justify-between group">
+                <div className="flex-grow max-w-[70%]">
+                  <h3 className="text-xl font-bold text-white capitalize mb-0.5">{w.word}</h3>
+                  <p className="text-slate-400 text-sm line-clamp-1">{w.definition}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => playAudio(w)}
+                    className="p-2.5 bg-slate-800 hover:bg-indigo-600 text-slate-400 hover:text-white rounded-xl transition-all"
+                    title="Play Audio"
+                  >
+                    <Volume2 size={18} />
+                  </button>
+                  <button
+                    onClick={() => deleteWord(w.id)}
+                    className="p-2.5 bg-slate-800 hover:bg-red-600 text-slate-400 hover:text-white rounded-xl transition-all"
+                    title="Delete Word"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                </div>
               </div>
-          )}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
+
+      {/* Reset Confirmation Modal */}
+      {showClearConfirm && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[100] flex items-center justify-center p-6">
+          <div className="bg-slate-900 border-2 border-red-500/30 rounded-[2.5rem] p-10 max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="flex flex-col items-center text-center">
+              <div className="p-5 bg-red-500/20 rounded-full mb-6 text-red-400">
+                <AlertTriangle size={48} />
+              </div>
+              <h3 className="text-3xl font-black text-white mb-3">Reset Library?</h3>
+              <p className="text-slate-400 mb-8 leading-relaxed">
+                This will permanently delete all <span className="text-white font-bold">{words.length} words</span>, 
+                clear your Flashcard progress, and reset Spelling stats. 
+                <span className="block mt-2 font-black text-red-500/80 uppercase text-xs tracking-tighter">This action cannot be undone.</span>
+              </p>
+              <div className="flex gap-4 w-full">
+                <button
+                  onClick={() => setShowClearConfirm(false)}
+                  className="flex-1 py-4 bg-slate-800 hover:bg-slate-700 text-white rounded-2xl font-black transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={clearAll}
+                  className="flex-1 py-4 bg-red-600 hover:bg-red-500 text-white rounded-2xl font-black shadow-lg shadow-red-600/20 transition-all"
+                >
+                  Clear All
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
