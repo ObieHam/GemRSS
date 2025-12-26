@@ -14,7 +14,7 @@ import FlashcardStatsView from '../components/FlashcardStatsView';
 import SpellingStatsView from '../components/SpellingStatsView';
 import SettingsPanel from '../components/SettingsPanel';
 
-// Fix for PDF Parser: Set the worker source from CDN to match the installed library version
+// Fix for PDF Parser: Set the worker source
 if (typeof window !== 'undefined') {
   pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
 }
@@ -38,20 +38,30 @@ export default function LexiBuildApp() {
     saveSettings(newSettings);
   };
 
-  return (
-    <div className="flex min-h-screen bg-[#0f172a] text-slate-100 font-sans">
-      <Sidebar 
-        view={view} 
-        setView={setView} 
-        sidebarOpen={sidebarOpen} 
-        setSidebarOpen={setSidebarOpen}
-        onSettingsClick={() => setShowSettings(true)}
-      />
+  // Determine if main sidebar should be visible
+  const isReaderMode = view === 'reader';
 
-      <main className={`flex-1 transition-all duration-300 ${sidebarOpen ? 'ml-72' : 'ml-20'} p-8`}>
+  return (
+    <div className="flex min-h-screen bg-[#0f172a] text-slate-100 font-sans overflow-hidden">
+      {/* Conditionally render Sidebar based on view mode */}
+      {!isReaderMode && (
+        <Sidebar 
+          view={view} 
+          setView={setView} 
+          sidebarOpen={sidebarOpen} 
+          setSidebarOpen={setSidebarOpen}
+          onSettingsClick={() => setShowSettings(true)}
+        />
+      )}
+
+      {/* Adjust margin based on view mode */}
+      <main className={`flex-1 transition-all duration-300 ${!isReaderMode ? (sidebarOpen ? 'ml-72' : 'ml-20') : 'ml-0'} ${!isReaderMode ? 'p-8' : 'p-0'} h-screen overflow-hidden`}>
         {view === 'home' && <DashboardView words={words} setView={setView} />}
         {view === 'parse' && <ParseView loadWords={loadWords} settings={settings} />}
-        {view === 'reader' && <ReaderView settings={settings} loadWords={loadWords} words={words} />}
+        
+        {/* Pass setView to ReaderView so it can provide an exit button */}
+        {view === 'reader' && <ReaderView settings={settings} loadWords={loadWords} words={words} onExit={() => setView('home')} />}
+        
         {view === 'flashcards' && <FlashcardView words={words} settings={settings} />}
         {view === 'flashcard-stats' && <FlashcardStatsView words={words} loadWords={loadWords} setView={setView} />}
         {view === 'spelling' && <SpellingView words={words} settings={settings} />}
