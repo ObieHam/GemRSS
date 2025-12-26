@@ -14,6 +14,11 @@ import FlashcardStatsView from '../components/FlashcardStatsView';
 import SpellingStatsView from '../components/SpellingStatsView';
 import SettingsPanel from '../components/SettingsPanel';
 
+// Fix for PDF Parser: Set the worker source from CDN to match the installed library version
+if (typeof window !== 'undefined') {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+}
+
 export default function LexiBuildApp() {
   const [view, setView] = useState('home');
   const [sidebarOpen, setSidebarOpen] = useState(true);
