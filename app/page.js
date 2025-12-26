@@ -21,7 +21,7 @@ if (typeof window !== 'undefined') {
 
 export default function LexiBuildApp() {
   const [view, setView] = useState('home');
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(true); // Consistent Sidebar State
   const [words, setWords] = useState([]);
   const [settings, setSettings] = useState(getSettings());
   const [showSettings, setShowSettings] = useState(false);
@@ -40,7 +40,7 @@ export default function LexiBuildApp() {
 
   return (
     <div className="flex min-h-screen bg-[#0f172a] text-slate-100 font-sans overflow-hidden">
-      {/* Sidebar is now always rendered */}
+      {/* Sidebar is now persistent across ALL views */}
       <Sidebar 
         view={view} 
         setView={setView} 
@@ -49,17 +49,27 @@ export default function LexiBuildApp() {
         onSettingsClick={() => setShowSettings(true)}
       />
 
-      {/* Main content adjusts padding/margin based on sidebar state */}
+      {/* Main content area shifts smoothly based on sidebar state */}
       <main className={`flex-1 transition-all duration-500 ease-in-out ${sidebarOpen ? 'ml-64' : 'ml-16'} h-screen overflow-hidden`}>
-        <div className={`h-full w-full ${view !== 'reader' ? 'p-8 overflow-y-auto' : ''}`}>
-          {view === 'home' && <DashboardView words={words} setView={setView} />}
-          {view === 'parse' && <ParseView loadWords={loadWords} settings={settings} />}
-          {view === 'reader' && <ReaderView settings={settings} loadWords={loadWords} words={words} sidebarOpen={sidebarOpen} />}
-          {view === 'flashcards' && <FlashcardView words={words} settings={settings} />}
-          {view === 'flashcard-stats' && <FlashcardStatsView words={words} loadWords={loadWords} setView={setView} />}
-          {view === 'spelling' && <SpellingView words={words} settings={settings} />}
-          {view === 'spelling-stats' && <SpellingStatsView words={words} loadWords={loadWords} setView={setView} />}
-          {view === 'browse' && <BrowseView words={words} loadWords={loadWords} settings={settings} setView={setView} />}
+        <div className="h-full w-full">
+          {view === 'home' && <div className="p-8 h-full overflow-y-auto"><DashboardView words={words} setView={setView} /></div>}
+          {view === 'parse' && <div className="p-8 h-full overflow-y-auto"><ParseView loadWords={loadWords} settings={settings} /></div>}
+          
+          {/* ReaderView now fills the main area dynamically */}
+          {view === 'reader' && (
+            <ReaderView 
+              settings={settings} 
+              loadWords={loadWords} 
+              words={words} 
+              onExit={() => setView('home')} 
+            />
+          )}
+
+          {view === 'flashcards' && <div className="p-8 h-full overflow-y-auto"><FlashcardView words={words} settings={settings} /></div>}
+          {view === 'flashcard-stats' && <div className="p-8 h-full overflow-y-auto"><FlashcardStatsView words={words} loadWords={loadWords} setView={setView} /></div>}
+          {view === 'spelling' && <div className="p-8 h-full overflow-y-auto"><SpellingView words={words} settings={settings} /></div>}
+          {view === 'spelling-stats' && <div className="p-8 h-full overflow-y-auto"><SpellingStatsView words={words} loadWords={loadWords} setView={setView} /></div>}
+          {view === 'browse' && <div className="p-8 h-full overflow-y-auto"><BrowseView words={words} loadWords={loadWords} settings={settings} setView={setView} /></div>}
         </div>
       </main>
 
