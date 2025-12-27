@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Volume2, CheckCircle, SkipForward, ChevronRight, Loader2, TrendingUp, GraduationCap, PlayCircle, PlusCircle, Edit3, Flame } from 'lucide-react';
 import { spellingDb } from '../lib/spellingStorage';
-import { IELTS_WORDS } from '../lib/ieltsWords'; // Ensure this file exists from previous turn
+import { IELTS_WORDS } from '../lib/ieltsWords';
 import { db } from '../lib/storage';
 
 export default function SpellingView({ words, settings }) {
@@ -56,14 +56,19 @@ export default function SpellingView({ words, settings }) {
   };
 
   const playResultSound = (isSuccess) => {
-    const soundPath = isSuccess ? '/soundeffects/success.mp3' : '/soundeffects/failure.mp3';
+    // In Next.js, files in /public are served at the root path '/'
+    const soundPath = isSuccess ? '/success.mp3' : '/failure.mp3';
     const audio = new Audio(soundPath);
+    
     if (isSuccess) {
       const pitchShift = Math.min(1.0 + (streak * 0.1), 2.0);
       audio.playbackRate = pitchShift;
       audio.preservesPitch = false; 
     }
-    audio.play().catch(() => {});
+    
+    audio.play().catch(err => {
+      console.error("Audio playback failed. Ensure files are directly in the public/ folder", err);
+    });
   };
 
   const handleSaveExample = async () => {
@@ -83,15 +88,15 @@ export default function SpellingView({ words, settings }) {
 
     if (isCorrect) {
       setFeedback('correct');
-      setStreak(prev => prev + 1);
       playResultSound(true);
+      setStreak(prev => prev + 1);
       spellingDb.recordResult(wordId, 2, practiceType); 
       setSession(s => ({ ...s, correct: s.correct + 1 }));
       setTimeout(nextWord, 1000); 
     } else {
       setFeedback('incorrect');
-      setStreak(0);
       playResultSound(false);
+      setStreak(0);
       spellingDb.recordResult(wordId, 0, practiceType); 
       setSession(s => ({ ...s, incorrect: s.incorrect + 1 }));
     }
@@ -186,9 +191,10 @@ export default function SpellingView({ words, settings }) {
         </div>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-8 items-stretch min-h-[550px]">
-        {/* Persistent Left Column: Practice Area */}
-        <div className="flex-1 bg-[#1e293b] border border-slate-700/50 rounded-[2.5rem] p-12 text-center shadow-2xl flex flex-col justify-center">
+      {/* Side-by-side persistent layout aligned at top */}
+      <div className="flex flex-col lg:flex-row gap-8 items-start min-h-[550px]">
+        {/* Left Column: Practice Area */}
+        <div className="flex-1 bg-[#1e293b] border border-slate-700/50 rounded-[2.5rem] p-12 text-center shadow-2xl flex flex-col justify-center min-h-[450px]">
             <div className="flex justify-center gap-4 mb-10">
               <button onClick={() => playText(currentWord)} className="p-6 bg-slate-800 hover:bg-blue-600 rounded-3xl transition-all group shadow-lg">
                 <Volume2 size={48} className="text-white group-hover:scale-105" />
@@ -221,16 +227,16 @@ export default function SpellingView({ words, settings }) {
                </div>
             ) : (
                 <button onClick={nextWord} className="w-full py-6 bg-indigo-600 hover:bg-indigo-500 rounded-3xl font-black text-white text-xl flex items-center justify-center gap-2">
-                    Continue <ChevronRight size={24} />
+                    Continue Session <ChevronRight size={24} />
                 </button>
             )}
         </div>
 
-        {/* Persistent Right Column: Feedback or Word Data */}
-        <div className="w-full lg:w-[450px] flex flex-col gap-4">
-            <div className="bg-[#0f172a] border border-slate-800 rounded-[2.5rem] p-8 h-full shadow-inner flex flex-col justify-center">
+        {/* Right Column: Feedback or Word Data (Persistent) */}
+        <div className="w-full lg:w-[450px] flex flex-col gap-4 self-stretch">
+            <div className="bg-[#0f172a] border border-slate-800 rounded-[2.5rem] p-8 h-full shadow-inner flex flex-col">
                 {feedback === 'incorrect' ? (
-                  <div className="animate-in fade-in slide-in-from-right-4">
+                  <div className="animate-in fade-in slide-in-from-right-4 h-full">
                       <p className="text-red-400 text-xs font-black uppercase mb-4 tracking-widest">Letter Comparison</p>
                       <div className="mb-8">{renderComparisonVertical()}</div>
                       <div className="pt-6 border-t border-slate-800">
@@ -239,14 +245,14 @@ export default function SpellingView({ words, settings }) {
                         {currentExample ? (
                           <p className="text-slate-300 text-lg italic leading-relaxed">"{currentExample}"</p>
                         ) : (
-                          <button onClick={() => { setIsEditingExample(true); setNewExample(""); }} className="flex items-center gap-2 text-indigo-400 text-sm font-bold hover:text-indigo-300">
+                          <button onClick={() => { setIsEditingExample(true); setNewExample(""); }} className="flex items-center gap-2 text-indigo-400 text-sm font-bold hover:text-indigo-300 transition-colors">
                             <PlusCircle size={16} /> Add Context Sentence
                           </button>
                         )}
                       </div>
                   </div>
                 ) : feedback === 'correct' ? (
-                  <div className="text-center py-12 flex flex-col items-center justify-center animate-in zoom-in-95">
+                  <div className="text-center py-12 flex flex-col items-center justify-center h-full animate-in zoom-in-95">
                       <div className="bg-emerald-500/20 w-24 h-24 rounded-full flex items-center justify-center mb-6">
                         <CheckCircle size={48} className="text-emerald-500" />
                       </div>
@@ -254,9 +260,9 @@ export default function SpellingView({ words, settings }) {
                       {streak > 1 && <p className="text-emerald-400 text-lg font-black animate-bounce">{streak}x STREAK!</p>}
                   </div>
                 ) : (
-                  <div className="flex flex-col">
+                  <div className="flex flex-col h-full">
                     <p className="text-slate-500 text-[10px] font-black uppercase tracking-[0.2em] mb-6">Word Proficiency Info</p>
-                    <div className="space-y-6">
+                    <div className="space-y-6 flex-1">
                         <div className="flex justify-between items-center bg-slate-900/50 p-4 rounded-2xl border border-slate-800">
                             <span className="text-slate-400 font-bold">FSRS Stability</span>
                             <span className="text-white font-black">{Math.round(currentItem.card.stability || 0)} days</span>
@@ -270,9 +276,10 @@ export default function SpellingView({ words, settings }) {
                             <span className="text-white font-black">{currentItem.card.nextReview ? new Date(currentItem.card.nextReview).toLocaleDateString() : 'Now'}</span>
                         </div>
                     </div>
+                    
                     {practiceType === 'general' && (
-                        <div className="mt-10">
-                             <button onClick={() => { setIsEditingExample(true); setNewExample(currentExample || ""); }} className="w-full py-4 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-2xl font-black text-xs uppercase tracking-widest border border-slate-700 flex items-center justify-center gap-2">
+                        <div className="mt-auto pt-10">
+                             <button onClick={() => { setIsEditingExample(true); setNewExample(currentExample || ""); }} className="w-full py-4 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-2xl font-black text-xs uppercase tracking-widest border border-slate-700 flex items-center justify-center gap-2 transition-colors">
                                 <Edit3 size={14} /> {currentExample ? 'Edit Context' : 'Add Context'}
                              </button>
                         </div>
@@ -286,7 +293,7 @@ export default function SpellingView({ words, settings }) {
       {isEditingExample && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[100] flex items-center justify-center p-6">
           <div className="bg-slate-900 border-2 border-indigo-500/30 rounded-[2.5rem] p-10 max-w-lg w-full shadow-2xl">
-            <h3 className="text-2xl font-black text-white mb-2">Add Word Context</h3>
+            <h3 className="text-2xl font-black text-white mb-2">{currentExample ? 'Edit Context' : 'Add Context'}</h3>
             <textarea 
               autoFocus
               className="w-full h-32 bg-slate-950 border border-slate-800 rounded-2xl p-4 text-white outline-none focus:border-indigo-500 mb-6"
