@@ -205,15 +205,15 @@ export default function FlashcardView({ words, settings }) {
             {/* Glowing Anki Buttons */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 w-full max-w-4xl mx-auto">
                 {[
-                  { q: 0, l: 'Again', c: 'bg-red-500 hover:bg-red-400 shadow-red-500/20', i: '<1m' },
-                  { q: 1, l: 'Hard', c: 'bg-orange-500 hover:bg-orange-400 shadow-orange-500/20', i: '2d' },
-                  { q: 2, l: 'Good', c: 'bg-emerald-500 hover:bg-emerald-400 shadow-emerald-500/20', i: '4d' },
-                  { q: 3, l: 'Easy', c: 'bg-blue-500 hover:bg-blue-400 shadow-blue-500/20', i: '7d' },
+                  { q: 0, l: 'Again', c: 'bg-red-500/10 text-red-400 border border-red-500/20', i: '<1m' },
+                  { q: 1, l: 'Hard', c: 'bg-orange-500/10 text-orange-400 border border-orange-500/20', i: '2d' },
+                  { q: 2, l: 'Good', c: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20', i: '4d' },
+                  { q: 3, l: 'Easy', c: 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20', i: '7d' },
                 ].map((btn) => (
                   <button
                     key={btn.l}
                     onClick={() => handleAnswer(btn.q)}
-                    className={`${btn.c} p-6 rounded-[2rem] text-white transition-all hover:scale-105 hover:shadow-2xl shadow-lg flex flex-col items-center justify-center gap-1 active:scale-95`}
+                    className={`${btn.c} p-5 rounded-2xl transition-all hover:scale-105 flex flex-col items-center justify-center gap-1 active:scale-95 hover:bg-opacity-20`}
                   >
                     <span className="block font-black text-lg">{btn.l}</span>
                     <span className="text-xs font-bold opacity-80">{btn.i}</span>
