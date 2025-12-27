@@ -4,7 +4,7 @@ import { spellingDb } from '../lib/spellingStorage';
 import { IELTS_WORDS } from '../lib/ieltsWords';
 import { db } from '../lib/storage';
 
-export default function SpellingView({ words, settings }) {
+export default function SpellingView({ words, settings, onSuccessFlash }) {
   const [mode, setMode] = useState('menu'); 
   const [practiceType, setPracticeType] = useState('general');
   const [session, setSession] = useState({ currentIndex: 0, list: [], correct: 0, incorrect: 0 });
@@ -15,8 +15,19 @@ export default function SpellingView({ words, settings }) {
   const [isEditingExample, setIsEditingExample] = useState(false);
   const [newExample, setNewExample] = useState("");
   const inputRef = useRef(null);
+  
+  // Persistent Audio Objects for preloading
+  const successAudio = useRef(null);
+  const failureAudio = useRef(null);
 
-  useEffect(() => { loadAllStats(); }, [words]);
+  useEffect(() => {
+    loadAllStats();
+    // Preload sound files from public directory
+    successAudio.current = new Audio('/success.mp3');
+    failureAudio.current = new Audio('/failure.mp3');
+    successAudio.current.load();
+    failureAudio.current.load();
+  }, [words]);
 
   const loadAllStats = async () => {
     const generalStats = await spellingDb.getStats(words, 'general');
@@ -56,19 +67,20 @@ export default function SpellingView({ words, settings }) {
   };
 
   const playResultSound = (isSuccess) => {
-    // In Next.js, files in /public are served at the root path '/'
-    const soundPath = isSuccess ? '/success.mp3' : '/failure.mp3';
-    const audio = new Audio(soundPath);
-    
+    const audio = isSuccess ? successAudio.current : failureAudio.current;
+    if (!audio) return;
+
+    audio.currentTime = 0; // Reset to start
     if (isSuccess) {
-      const pitchShift = Math.min(1.0 + (streak * 0.1), 2.0);
+      // Lower pitch change (0.05 instead of 0.1) for high streak comfort
+      const pitchShift = Math.min(1.0 + (streak * 0.05), 1.7);
       audio.playbackRate = pitchShift;
       audio.preservesPitch = false; 
+    } else {
+      audio.playbackRate = 1.0;
     }
     
-    audio.play().catch(err => {
-      console.error("Audio playback failed. Ensure files are directly in the public/ folder", err);
-    });
+    audio.play().catch(() => {});
   };
 
   const handleSaveExample = async () => {
@@ -88,15 +100,16 @@ export default function SpellingView({ words, settings }) {
 
     if (isCorrect) {
       setFeedback('correct');
-      playResultSound(true);
+      if (onSuccessFlash) onSuccessFlash(); // Flash Sidebar
+      playResultSound(true); // Success Sound
       setStreak(prev => prev + 1);
       spellingDb.recordResult(wordId, 2, practiceType); 
       setSession(s => ({ ...s, correct: s.correct + 1 }));
       setTimeout(nextWord, 1000); 
     } else {
       setFeedback('incorrect');
-      playResultSound(false);
       setStreak(0);
+      playResultSound(false); // Failure Sound
       spellingDb.recordResult(wordId, 0, practiceType); 
       setSession(s => ({ ...s, incorrect: s.incorrect + 1 }));
     }
@@ -191,9 +204,8 @@ export default function SpellingView({ words, settings }) {
         </div>
       </div>
 
-      {/* Side-by-side persistent layout aligned at top */}
       <div className="flex flex-col lg:flex-row gap-8 items-start min-h-[550px]">
-        {/* Left Column: Practice Area */}
+        {/* Practice Area */}
         <div className="flex-1 bg-[#1e293b] border border-slate-700/50 rounded-[2.5rem] p-12 text-center shadow-2xl flex flex-col justify-center min-h-[450px]">
             <div className="flex justify-center gap-4 mb-10">
               <button onClick={() => playText(currentWord)} className="p-6 bg-slate-800 hover:bg-blue-600 rounded-3xl transition-all group shadow-lg">
@@ -226,17 +238,17 @@ export default function SpellingView({ words, settings }) {
                   </button>
                </div>
             ) : (
-                <button onClick={nextWord} className="w-full py-6 bg-indigo-600 hover:bg-indigo-500 rounded-3xl font-black text-white text-xl flex items-center justify-center gap-2">
+                <button onClick={nextWord} className="w-full py-6 bg-indigo-600 hover:bg-indigo-500 rounded-3xl font-black text-white text-xl flex items-center justify-center gap-2 transition-colors">
                     Continue Session <ChevronRight size={24} />
                 </button>
             )}
         </div>
 
-        {/* Right Column: Feedback or Word Data (Persistent) */}
+        {/* Feedback / Word Info Area */}
         <div className="w-full lg:w-[450px] flex flex-col gap-4 self-stretch">
-            <div className="bg-[#0f172a] border border-slate-800 rounded-[2.5rem] p-8 h-full shadow-inner flex flex-col">
+            <div className="bg-[#0f172a] border border-slate-800 rounded-[2.5rem] p-8 h-full shadow-inner flex flex-col justify-center">
                 {feedback === 'incorrect' ? (
-                  <div className="animate-in fade-in slide-in-from-right-4 h-full">
+                  <div className="animate-in fade-in h-full">
                       <p className="text-red-400 text-xs font-black uppercase mb-4 tracking-widest">Letter Comparison</p>
                       <div className="mb-8">{renderComparisonVertical()}</div>
                       <div className="pt-6 border-t border-slate-800">
@@ -245,7 +257,7 @@ export default function SpellingView({ words, settings }) {
                         {currentExample ? (
                           <p className="text-slate-300 text-lg italic leading-relaxed">"{currentExample}"</p>
                         ) : (
-                          <button onClick={() => { setIsEditingExample(true); setNewExample(""); }} className="flex items-center gap-2 text-indigo-400 text-sm font-bold hover:text-indigo-300 transition-colors">
+                          <button onClick={() => { setIsEditingExample(true); setNewExample(""); }} className="flex items-center gap-2 text-indigo-400 text-sm font-bold hover:text-indigo-300">
                             <PlusCircle size={16} /> Add Context Sentence
                           </button>
                         )}
@@ -276,10 +288,9 @@ export default function SpellingView({ words, settings }) {
                             <span className="text-white font-black">{currentItem.card.nextReview ? new Date(currentItem.card.nextReview).toLocaleDateString() : 'Now'}</span>
                         </div>
                     </div>
-                    
                     {practiceType === 'general' && (
                         <div className="mt-auto pt-10">
-                             <button onClick={() => { setIsEditingExample(true); setNewExample(currentExample || ""); }} className="w-full py-4 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-2xl font-black text-xs uppercase tracking-widest border border-slate-700 flex items-center justify-center gap-2 transition-colors">
+                             <button onClick={() => { setIsEditingExample(true); setNewExample(currentExample || ""); }} className="w-full py-4 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-2xl font-black text-xs uppercase tracking-widest border border-slate-700 flex items-center justify-center gap-2">
                                 <Edit3 size={14} /> {currentExample ? 'Edit Context' : 'Add Context'}
                              </button>
                         </div>
@@ -296,7 +307,7 @@ export default function SpellingView({ words, settings }) {
             <h3 className="text-2xl font-black text-white mb-2">{currentExample ? 'Edit Context' : 'Add Context'}</h3>
             <textarea 
               autoFocus
-              className="w-full h-32 bg-slate-950 border border-slate-800 rounded-2xl p-4 text-white outline-none focus:border-indigo-500 mb-6"
+              className="w-full h-32 bg-slate-950 border border-slate-800 rounded-2xl p-4 text-white outline-none focus:border-blue-500 mb-6"
               value={newExample}
               onChange={(e) => setNewExample(e.target.value)}
             />
