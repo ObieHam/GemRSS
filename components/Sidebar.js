@@ -19,7 +19,7 @@ export default function Sidebar({ view, setView, sidebarOpen, setSidebarOpen, on
       
       <div className="p-3 h-full flex flex-col">
         <div className="flex items-center justify-between mb-4">
-          {sidebarOpen && <div className="text-xl font-black text-white ml-2">LexiBuild</div>}
+          {sidebarOpen && <div className="text-xl font-black text-white ml-2 animate-in fade-in duration-300">LexiBuild</div>}
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
             className="p-2 hover:bg-slate-700/50 rounded-lg transition-all ml-auto text-slate-400"
@@ -42,8 +42,9 @@ export default function Sidebar({ view, setView, sidebarOpen, setSidebarOpen, on
                   : isFlashing ? 'text-emerald-400' : 'hover:bg-slate-700/30 text-slate-400'
               }`}
             >
-              <item.icon size={sidebarOpen ? 18 : 24} />
-              {sidebarOpen && <span className="text-sm font-semibold">{item.label}</span>}
+              {/* Fixed size to 20 to prevent the growing/shrinking bug during animation */}
+              <item.icon size={20} className="flex-shrink-0" />
+              {sidebarOpen && <span className="text-sm font-semibold truncate animate-in fade-in slide-in-from-left-2 duration-300">{item.label}</span>}
             </button>
           ))}
         </nav>
@@ -56,8 +57,8 @@ export default function Sidebar({ view, setView, sidebarOpen, setSidebarOpen, on
               sidebarOpen ? 'gap-3 p-2.5' : 'justify-center p-2.5'
             } rounded-lg hover:bg-slate-700/30 text-slate-400`}
           >
-            <Settings size={sidebarOpen ? 18 : 24} />
-            {sidebarOpen && <span className="text-sm font-semibold">Settings</span>}
+            <Settings size={20} className="flex-shrink-0" />
+            {sidebarOpen && <span className="text-sm font-semibold animate-in fade-in slide-in-from-left-2 duration-300">Settings</span>}
           </button>
         </div>
       </div>
