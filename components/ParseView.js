@@ -1,6 +1,6 @@
 // components/ParseView.js
 import { useRef, useState } from 'react';
-import { Upload, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Upload, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 import * as pdfjsLib from 'pdfjs-dist';
 import { db } from '../lib/storage';
 import { COMMON_WORDS } from '../lib/constants';
@@ -22,6 +22,7 @@ export default function ParseView({ loadWords, settings }) {
     for (const sentence of sentences) {
       const tokens = sentence.toLowerCase().match(/\b[a-z]{4,}\b/g);
       if (!tokens) continue;
+
       for (const token of tokens) {
         if (COMMON_WORDS.has(token) || !isValidWord(token)) continue;
         const exists = existingWords.find(w => w.word === token);
@@ -34,7 +35,7 @@ export default function ParseView({ loadWords, settings }) {
     const total = allTokens.length;
     setStatus({ loading: true, msg: `Initializing...`, progress: 0, total });
 
-    const batchSize = 2; // Smaller batch size prevents skipping/rate limits
+    const batchSize = 2; // Small batch size ensures stability and UI responsiveness
     for (let i = 0; i < allTokens.length; i += batchSize) {
       const currentCount = Math.min(i + batchSize, total);
       setStatus(prev => ({ 
@@ -45,39 +46,6 @@ export default function ParseView({ loadWords, settings }) {
       }));
 
       const batch = allTokens.slice(i, i + batchSize);
-      const batchResults = await Promise.all(
-        batch.map(async ({ word, context }) => {
-          const info = await fetchDefinition(word, settings);
-          return { word, context, info };
-        })
-      );
-
-      // Necessary delay to ensure UI updates and API stability
-      await new Promise(resolve => setTimeout(resolve, 800));
-
-      for (const { word, context, info } of batchResults) {
-        if (!info.error && !info.rateLimit) {
-          const baseExists = existingWords.find(w => w.word === info.word);
-          if (!baseExists) {
-            await db.vocabulary.add({ ...info, context });
-            existingWords.push({ word: info.word });
-            successfulWords.push(info.word);
-          }
-        }
-      }
-    }
-
-    await loadWords();
-    setAddedWords(successfulWords);
-    setStatus({ loading: false, msg: 'Complete!', progress: total, total });
-  };
-
-    const total = allTokens.length;
-    setStatus({ loading: true, msg: 'Processing words...', progress: 0, total });
-
-    const batchSize = 4;
-    for (let i = 0; i < allTokens.length; i += batchSize) {
-      const batch = allTokens.slice(i, i + batchSize);
       
       const batchResults = await Promise.all(
         batch.map(async ({ word, context }) => {
@@ -86,7 +54,7 @@ export default function ParseView({ loadWords, settings }) {
         })
       );
 
-      // Check for Rate Limit in batch
+      // Detect Rate Limit in batch
       if (batchResults.some(r => r.info?.rateLimit)) {
         setIsRateLimited(true);
         setStatus(prev => ({ ...prev, msg: 'Rate limit hit. Waiting 5 seconds...' }));
@@ -95,6 +63,9 @@ export default function ParseView({ loadWords, settings }) {
         i -= batchSize; // Retry this batch
         continue;
       }
+
+      // Stability delay to allow UI to update and prevent skipping
+      await new Promise(resolve => setTimeout(resolve, 800));
 
       for (const { word, context, info } of batchResults) {
         if (!info.error) {
@@ -105,17 +76,6 @@ export default function ParseView({ loadWords, settings }) {
             successfulWords.push(info.word);
           }
         }
-      }
-
-      setStatus({ 
-        loading: true, 
-        msg: 'Processing words...', 
-        progress: Math.min(i + batchSize, total), 
-        total 
-      });
-      
-      if (i + batchSize < allTokens.length) {
-        await new Promise(resolve => setTimeout(resolve, 500));
       }
     }
 
@@ -161,9 +121,9 @@ export default function ParseView({ loadWords, settings }) {
         <button
           onClick={() => fileInputRef.current?.click()}
           disabled={status.loading}
-          className="inline-flex items-center gap-4 px-8 py-4 bg-indigo-500 hover:bg-indigo-600 disabled:bg-slate-700 rounded-2xl font-bold text-lg transition-colors"
+          className="inline-flex items-center gap-4 px-8 py-4 bg-indigo-500 hover:bg-indigo-600 disabled:bg-slate-700 rounded-2xl font-bold text-lg transition-colors text-white"
         >
-          <Upload size={24} />
+          {status.loading ? <Loader2 className="animate-spin" /> : <Upload size={24} />}
           {status.loading ? 'Processing...' : 'Select File'}
         </button>
       </div>
@@ -193,19 +153,6 @@ export default function ParseView({ loadWords, settings }) {
             <p className="text-green-400 font-bold text-2xl">Processing Complete!</p>
             <p className="text-slate-400 mt-2">{addedWords.length} new words added to library</p>
           </div>
-          
-          {addedWords.length > 0 && (
-            <div className="bg-slate-900 border-2 border-slate-800 rounded-3xl p-8">
-              <h3 className="text-white font-bold text-xl mb-4">Added Words</h3>
-              <div className="flex flex-wrap gap-2 max-h-60 overflow-y-auto pr-4">
-                {addedWords.map((word, idx) => (
-                  <span key={idx} className="px-3 py-1 bg-slate-800 border border-slate-700 rounded-lg text-indigo-300 font-medium">
-                    {word}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       )}
     </div>
