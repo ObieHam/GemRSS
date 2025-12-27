@@ -7,7 +7,7 @@ import { fetchDefinition } from '../lib/apiService';
 import { isValidWord } from '../lib/utils';
 import { COMMON_WORDS } from '../lib/constants';
 
-function PDFPage({ pdfDoc, pageNum, scale, onWordClick, highlightedWords, onFirstNewWord }) {
+function PDFPage({ pdfDoc, pageNum, scale, onWordClick, highlightedWords }) {
   const canvasRef = useRef(null);
   const textLayerRef = useRef(null);
 
@@ -22,12 +22,15 @@ function PDFPage({ pdfDoc, pageNum, scale, onWordClick, highlightedWords, onFirs
         const canvas = canvasRef.current;
         const context = canvas.getContext('2d');
         
-        const dpr = window.devicePixelRatio || 1;
+        // Boost resolution for clearer text rendering
+        const dpr = Math.max(window.devicePixelRatio || 1, 2); 
         canvas.height = viewport.height * dpr;
         canvas.width = viewport.width * dpr;
         canvas.style.height = viewport.height + 'px';
         canvas.style.width = viewport.width + 'px';
+        
         context.scale(dpr, dpr);
+        context.imageSmoothingEnabled = false; // Prevents blurring of text edges
 
         if (renderTask) renderTask.cancel();
 
@@ -46,7 +49,6 @@ function PDFPage({ pdfDoc, pageNum, scale, onWordClick, highlightedWords, onFirs
           div.style.position = 'absolute';
           div.style.left = tx[4] + 'px';
           
-          // Fix vertical positioning with baseline adjustment (shifts highlight to word center)
           const fontHeight = Math.abs(tx[3]);
           const baselineAdjustment = fontHeight * 0.15; 
           div.style.top = (tx[5] - fontHeight + baselineAdjustment) + 'px';
@@ -79,7 +81,6 @@ function PDFPage({ pdfDoc, pageNum, scale, onWordClick, highlightedWords, onFirs
                 span.style.backgroundColor = 'rgba(251, 191, 36, 0.4)';
                 span.style.borderBottom = '3px solid rgba(245, 158, 11, 0.8)';
               } else if (isNewWord) {
-                // Golden highlight for new words
                 span.style.backgroundColor = 'rgba(212, 175, 55, 0.15)';
                 span.style.borderBottom = '2px solid rgba(212, 175, 55, 0.6)';
               }
@@ -122,6 +123,10 @@ export default function ReaderView({ settings, loadWords, words, onExit }) {
   const containerRef = useRef(null);
   const fileInputRef = useRef(null);
 
+  const hasAudio = (info) => {
+    return !!(info?.phonetics?.some(p => p.audio) || info?.audioUrl);
+  };
+
   const playAudio = (info) => {
     const audioUrl = info.phonetics?.find(p => p.audio)?.audio || info.audioUrl;
     if (audioUrl) new Audio(audioUrl).play().catch(() => {});
@@ -154,8 +159,7 @@ export default function ReaderView({ settings, loadWords, words, onExit }) {
     const info = await fetchDefinition(cleanWord, settings);
     setDefinitionPanel(info);
     
-    // Pronounce automatically on click
-    if (!info.error) playAudio(info);
+    if (!info.error && hasAudio(info)) playAudio(info);
 
     if (settings.autoSave && !info.error) {
       const exists = await db.vocabulary.where('word').equals(info.word).first();
@@ -216,7 +220,9 @@ export default function ReaderView({ settings, loadWords, words, onExit }) {
         </div>
         {definitionPanel && !definitionPanel.loading && (
           <div className="p-6 border-t-2 border-slate-800 space-y-3">
-             <button onClick={() => playAudio(definitionPanel)} className="w-full py-3 bg-slate-800 hover:bg-slate-700 rounded-xl font-bold text-white flex justify-center gap-2"><Volume2 size={18}/> Audio</button>
+             {hasAudio(definitionPanel) && (
+               <button onClick={() => playAudio(definitionPanel)} className="w-full py-3 bg-slate-800 hover:bg-slate-700 rounded-xl font-bold text-white flex justify-center gap-2"><Volume2 size={18}/> Play Audio</button>
+             )}
              <button onClick={() => db.vocabulary.add(definitionPanel).then(loadWords)} className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-black text-white flex justify-center gap-2"><Plus size={18}/> Add to Library</button>
           </div>
         )}
