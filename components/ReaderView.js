@@ -160,10 +160,15 @@ export default function ReaderView({ settings, loadWords, words, onExit }) {
       // Calculate initial scale to fit available width
       const page = await pdf.getPage(1);
       const viewport = page.getViewport({ scale: 1 });
-      const availableWidth = containerRef.current ? containerRef.current.clientWidth - 80 : window.innerWidth - 480; // Account for padding and sidebar
+      
+      // Calculate width by subtracting the left sidebar and the fixed 400px definition panel
+      const availableWidth = containerRef.current 
+        ? containerRef.current.clientWidth - 450 
+        : window.innerWidth - 650;
+        
       const calculatedScale = availableWidth / viewport.width;
       
-      // Set scale but cap it at 2.0 to prevent going under controls
+      // Set scale but cap it at 2.0
       setScale(Math.min(calculatedScale, 2.0));
       
       setPdfDoc(pdf);
@@ -202,21 +207,15 @@ export default function ReaderView({ settings, loadWords, words, onExit }) {
   const adjustScale = (delta) => {
     setScale(prev => {
       const newScale = prev + delta;
-      // Prevent scale from going too large
-      if (containerRef.current && pdfDoc) {
-        const availableWidth = containerRef.current.clientWidth - 80;
-        // Don't allow zooming that would make PDF wider than available space
-        return Math.max(0.5, Math.min(newScale, 2.5));
-      }
-      return Math.max(0.5, Math.min(3, newScale));
+      return Math.max(0.5, Math.min(2.5, newScale));
     });
   };
 
   return (
     <div className="flex h-full w-full bg-[#0f172a] overflow-hidden">
       
-      {/* PDF Scroll Area - Fixed with permanent right margin */}
-      <div ref={containerRef} className="flex-1 overflow-y-auto p-10 pr-[420px] pb-24">
+      {/* Updated overflow-auto to enable horizontal scrolling when zoomed */}
+      <div ref={containerRef} className="flex-1 overflow-auto p-10 pr-[420px] pb-24">
         {!pdfDoc ? (
           <div className="h-full flex flex-col items-center justify-center">
             <h2 className="text-4xl font-black mb-6 text-white">Interactive Reader</h2>
@@ -229,7 +228,7 @@ export default function ReaderView({ settings, loadWords, words, onExit }) {
             <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileUpload} accept=".pdf" />
           </div>
         ) : (
-          <div className="flex flex-col items-center">
+          <div className="flex flex-col items-center min-w-max">
             {Array.from({ length: numPages }, (_, i) => (
               <PDFPage 
                 key={i} 
