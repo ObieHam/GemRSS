@@ -38,8 +38,6 @@ function PDFPage({ pdfDoc, pageNum, scale, onWordClick, highlightedWords, onFirs
         const textLayer = textLayerRef.current;
         textLayer.innerHTML = '';
         
-        let firstNewWordFound = false;
-        
         textContent.items.forEach((item) => {
           const tx = pdfjsLib.Util.transform(viewport.transform, item.transform);
           const style = textContent.styles[item.fontName];
@@ -47,12 +45,16 @@ function PDFPage({ pdfDoc, pageNum, scale, onWordClick, highlightedWords, onFirs
           const div = document.createElement('div');
           div.style.position = 'absolute';
           div.style.left = tx[4] + 'px';
+          
+          // Fix vertical positioning with baseline adjustment (shifts highlight to word center)
           const fontHeight = Math.abs(tx[3]);
-          div.style.top = (tx[5] - fontHeight) + 'px';
+          const baselineAdjustment = fontHeight * 0.15; 
+          div.style.top = (tx[5] - fontHeight + baselineAdjustment) + 'px';
+          div.style.height = fontHeight + 'px';
           div.style.fontSize = fontHeight + 'px';
           div.style.fontFamily = style ? style.fontFamily : 'sans-serif';
           div.style.color = 'transparent';
-          div.style.lineHeight = '1';
+          div.style.lineHeight = '0.9';
           div.style.whiteSpace = 'pre';
           
           const text = item.str;
@@ -61,6 +63,7 @@ function PDFPage({ pdfDoc, pageNum, scale, onWordClick, highlightedWords, onFirs
           tokens.forEach(token => {
             const span = document.createElement('span');
             span.textContent = token;
+            span.style.display = 'inline-block';
             
             const lower = token.toLowerCase().replace(/[^a-z]/g, '');
             const isWord = /^[a-zA-Z]{3,}$/.test(token);
@@ -75,16 +78,10 @@ function PDFPage({ pdfDoc, pageNum, scale, onWordClick, highlightedWords, onFirs
               if (isSaved) {
                 span.style.backgroundColor = 'rgba(251, 191, 36, 0.4)';
                 span.style.borderBottom = '3px solid rgba(245, 158, 11, 0.8)';
-                span.style.paddingBottom = '1px';
               } else if (isNewWord) {
+                // Golden highlight for new words
                 span.style.backgroundColor = 'rgba(212, 175, 55, 0.15)';
                 span.style.borderBottom = '2px solid rgba(212, 175, 55, 0.6)';
-                span.style.padding = '0 1px 1px 1px';
-              }
-              
-              if (!isSaved && !firstNewWordFound && pageNum === 1 && onFirstNewWord) {
-                firstNewWordFound = true;
-                setTimeout(() => onFirstNewWord(token), 100);
               }
               
               span.addEventListener('mouseenter', () => {
@@ -106,7 +103,7 @@ function PDFPage({ pdfDoc, pageNum, scale, onWordClick, highlightedWords, onFirs
 
     render();
     return () => { if (renderTask) renderTask.cancel(); };
-  }, [pdfDoc, pageNum, scale, highlightedWords, onWordClick, onFirstNewWord]);
+  }, [pdfDoc, pageNum, scale, highlightedWords, onWordClick]);
 
   return (
     <div className="relative bg-white shadow-2xl mb-6 mx-auto" style={{ width: 'fit-content' }}>
@@ -119,42 +116,32 @@ function PDFPage({ pdfDoc, pageNum, scale, onWordClick, highlightedWords, onFirs
 export default function ReaderView({ settings, loadWords, words, onExit }) {
   const [pdfDoc, setPdfDoc] = useState(null);
   const [numPages, setNumPages] = useState(0);
-  const [scale, setScale] = useState(1.0); // Start with 1.0 for calculation
+  const [scale, setScale] = useState(1.0);
   const [definitionPanel, setDefinitionPanel] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [firstWordLoaded, setFirstWordLoaded] = useState(false);
   const containerRef = useRef(null);
   const fileInputRef = useRef(null);
 
   const playAudio = (info) => {
     const audioUrl = info.phonetics?.find(p => p.audio)?.audio || info.audioUrl;
-    if (audioUrl) {
-      const audio = new Audio(audioUrl);
-      audio.play().catch(() => {});
-    }
+    if (audioUrl) new Audio(audioUrl).play().catch(() => {});
   };
 
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
     setLoading(true);
-    setFirstWordLoaded(false);
     try {
       const arrayBuffer = await file.arrayBuffer();
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-      
       const page = await pdf.getPage(1);
       const viewport = page.getViewport({ scale: 1 });
       
-      // Strict width calculation: Total - right panel - left sidebar padding/margins
       const availableWidth = window.innerWidth - 450 - 280; 
-      const calculatedScale = availableWidth / viewport.width;
-      
-      setScale(Math.min(calculatedScale, 1.8));
+      setScale(Math.min(availableWidth / viewport.width, 1.8));
       setPdfDoc(pdf);
       setNumPages(pdf.numPages);
     } catch (err) {
-      console.error(err);
       alert('Error loading PDF');
     } finally {
       setLoading(false);
@@ -165,13 +152,10 @@ export default function ReaderView({ settings, loadWords, words, onExit }) {
     const cleanWord = word.replace(/[^a-zA-Z]/g, "").toLowerCase();
     setDefinitionPanel({ loading: true, word: cleanWord });
     const info = await fetchDefinition(cleanWord, settings);
-    
     setDefinitionPanel(info);
     
-    // Feature restored: Pronounce on click
-    if (!info.error) {
-      playAudio(info);
-    }
+    // Pronounce automatically on click
+    if (!info.error) playAudio(info);
 
     if (settings.autoSave && !info.error) {
       const exists = await db.vocabulary.where('word').equals(info.word).first();
@@ -179,21 +163,10 @@ export default function ReaderView({ settings, loadWords, words, onExit }) {
     }
   };
 
-  const handleFirstNewWord = (word) => {
-    if (!firstWordLoaded) {
-      setFirstWordLoaded(true);
-      handleWordClick(word);
-    }
-  };
-
-  const adjustScale = (delta) => {
-    setScale(prev => Math.max(0.5, Math.min(2.5, prev + delta)));
-  };
+  const adjustScale = (delta) => setScale(prev => Math.max(0.5, Math.min(2.5, prev + delta)));
 
   return (
     <div className="flex h-full w-full bg-[#0f172a] overflow-hidden relative">
-      
-      {/* Container fix: Ensure it cannot expand behind the definition sidebar */}
       <div 
         ref={containerRef} 
         className="h-full overflow-auto p-10 pb-24 transition-all duration-300"
@@ -204,7 +177,7 @@ export default function ReaderView({ settings, loadWords, words, onExit }) {
             <h2 className="text-4xl font-black mb-6 text-white text-center">Interactive Reader</h2>
             <button 
               onClick={() => fileInputRef.current.click()} 
-              className="bg-indigo-600 hover:bg-indigo-500 px-8 py-4 rounded-2xl font-bold flex items-center gap-2 transition-all text-white"
+              className="bg-indigo-600 hover:bg-indigo-500 px-8 py-4 rounded-2xl font-bold flex items-center gap-2 text-white"
             >
               {loading ? <Loader2 className="animate-spin" /> : <Upload />} Open PDF
             </button>
@@ -213,89 +186,38 @@ export default function ReaderView({ settings, loadWords, words, onExit }) {
         ) : (
           <div className="flex flex-col items-center">
             {Array.from({ length: numPages }, (_, i) => (
-              <PDFPage 
-                key={i} 
-                pdfDoc={pdfDoc} 
-                pageNum={i + 1} 
-                scale={scale}
-                onWordClick={handleWordClick}
-                onFirstNewWord={i === 0 ? handleFirstNewWord : null}
-                highlightedWords={words.map(w => w.word)}
-              />
+              <PDFPage key={i} pdfDoc={pdfDoc} pageNum={i + 1} scale={scale} onWordClick={handleWordClick} highlightedWords={words.map(w => w.word)} />
             ))}
           </div>
         )}
       </div>
 
-      {/* Floating Controls - adjusted margin to center relative to PDF area */}
       {pdfDoc && (
         <div className="fixed bottom-10 left-[calc(50%-200px)] -translate-x-1/2 flex items-center gap-4 bg-slate-900/95 backdrop-blur-xl p-3 px-6 rounded-full border-2 border-slate-700 z-50 shadow-2xl">
-           <button onClick={() => adjustScale(-0.2)} className="hover:bg-slate-800 p-2 rounded-full transition-colors text-white">
-             <ZoomOut size={20}/>
-           </button>
+           <button onClick={() => adjustScale(-0.2)} className="text-white hover:bg-slate-800 p-2 rounded-full"><ZoomOut size={20}/></button>
            <span className="text-sm font-black w-16 text-center text-slate-300">{Math.round(scale * 100)}%</span>
-           <button onClick={() => adjustScale(0.2)} className="hover:bg-slate-800 p-2 rounded-full transition-colors text-white">
-             <ZoomIn size={20}/>
-           </button>
-           <div className="w-px h-6 bg-slate-700 mx-2"></div>
-           <button onClick={onExit} className="text-red-400 hover:bg-red-500/10 p-2 rounded-full transition-colors">
-             <LogOut size={20}/>
-           </button>
+           <button onClick={() => adjustScale(0.2)} className="text-white hover:bg-slate-800 p-2 rounded-full"><ZoomIn size={20}/></button>
+           <button onClick={onExit} className="text-red-400 hover:bg-red-500/10 p-2 rounded-full ml-2"><LogOut size={20}/></button>
         </div>
       )}
 
-      {/* Definition Sidebar - Fixed position on the right */}
       <div className="fixed right-0 top-0 w-[400px] h-full bg-slate-950 border-l-2 border-slate-800 flex flex-col z-40">
         <div className="p-8 border-b-2 border-slate-800 flex justify-between items-center">
-          <h3 className="text-2xl font-black capitalize text-white truncate pr-4">
-            {definitionPanel?.word || 'Word Definition'}
-          </h3>
-          {definitionPanel && (
-            <button onClick={() => setDefinitionPanel(null)} className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 transition-colors">
-              <X size={20} />
-            </button>
-          )}
+          <h3 className="text-2xl font-black capitalize text-white truncate pr-4">{definitionPanel?.word || 'Word Definition'}</h3>
+          {definitionPanel && <button onClick={() => setDefinitionPanel(null)} className="p-2 text-slate-400 hover:bg-slate-800 rounded-lg"><X size={20} /></button>}
         </div>
-        
-        {definitionPanel ? (
-          <>
-            <div className="flex-1 overflow-y-auto p-8 space-y-6">
-              {definitionPanel.loading ? (
-                <Loader2 className="animate-spin text-indigo-500 mx-auto mt-10" size={40} />
-              ) : (
-                <>
-                  <div>
-                    <p className="text-xs font-black text-indigo-400 uppercase tracking-widest mb-2">Definition</p>
-                    <p className="text-slate-200 text-lg leading-relaxed">{definitionPanel.definition}</p>
-                  </div>
-                  {definitionPanel.example && (
-                    <div>
-                      <p className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2">Example</p>
-                      <blockquote className="text-slate-400 italic border-l-2 border-slate-700 pl-4">
-                        "{definitionPanel.example}"
-                      </blockquote>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-            {!definitionPanel.loading && (
-               <div className="p-6 border-t-2 border-slate-800 space-y-3 bg-slate-950">
-                  <button onClick={() => playAudio(definitionPanel)} className="w-full flex items-center justify-center gap-2 py-3 bg-slate-800 hover:bg-slate-700 rounded-xl font-bold text-white transition-colors">
-                    <Volume2 size={18} /> Play Audio
-                  </button>
-                  <button onClick={() => db.vocabulary.add(definitionPanel).then(loadWords)} className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-black text-white transition-colors">
-                    <Plus size={18} className="inline mr-2" /> Add to Library
-                  </button>
-               </div>
-            )}
-          </>
-        ) : (
-          <div className="flex-1 flex items-center justify-center p-8">
-            <div className="text-center text-slate-500">
-              <p className="text-lg font-medium">Click on any word in the PDF</p>
-              <p className="text-sm mt-2">to see its definition and hear it</p>
-            </div>
+        <div className="flex-1 overflow-y-auto p-8">
+           {definitionPanel?.loading ? <Loader2 className="animate-spin text-indigo-500 mx-auto mt-10" size={40} /> : definitionPanel ? (
+             <div className="space-y-6">
+                <div><p className="text-xs font-black text-indigo-400 uppercase tracking-widest mb-2">Definition</p><p className="text-slate-200 text-lg">{definitionPanel.definition}</p></div>
+                {definitionPanel.example && <div><p className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2">Example</p><blockquote className="text-slate-400 italic border-l-2 border-slate-700 pl-4">"{definitionPanel.example}"</blockquote></div>}
+             </div>
+           ) : <p className="text-center text-slate-500 mt-20">Click any word in the PDF</p>}
+        </div>
+        {definitionPanel && !definitionPanel.loading && (
+          <div className="p-6 border-t-2 border-slate-800 space-y-3">
+             <button onClick={() => playAudio(definitionPanel)} className="w-full py-3 bg-slate-800 hover:bg-slate-700 rounded-xl font-bold text-white flex justify-center gap-2"><Volume2 size={18}/> Audio</button>
+             <button onClick={() => db.vocabulary.add(definitionPanel).then(loadWords)} className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-black text-white flex justify-center gap-2"><Plus size={18}/> Add to Library</button>
           </div>
         )}
       </div>
