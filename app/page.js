@@ -5,7 +5,7 @@ import * as pdfjsLib from 'pdfjs-dist';
 import { db } from '../lib/storage';
 import { getSettings, saveSettings } from '../lib/utils';
 import Sidebar from '../components/Sidebar';
-import MainMenu from '../components/MainMenu'; // Integrated your landing menu
+import MainMenu from '../components/MainMenu';
 import ParseView from '../components/ParseView';
 import BrowseView from '../components/BrowseView';
 import ReaderView from '../components/ReaderView';
@@ -20,14 +20,9 @@ if (typeof window !== 'undefined') {
 }
 
 export default function LexiBuildApp() {
-  // Load initial states from localStorage to ensure "correct view" on startup
-  const [view, setView] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('lastView') || 'home';
-    }
-    return 'home';
-  });
-
+  // Always start with 'home' view - don't persist reader view
+  const [view, setView] = useState('home');
+  
   const [sidebarOpen, setSidebarOpen] = useState(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('sidebarState');
@@ -40,12 +35,13 @@ export default function LexiBuildApp() {
   const [settings, setSettings] = useState(getSettings());
   const [showSettings, setShowSettings] = useState(false);
 
-  // Persist view changes
+  // Only persist non-reader views
   useEffect(() => {
-    localStorage.setItem('lastView', view);
+    if (view !== 'reader') {
+      localStorage.setItem('lastView', view);
+    }
   }, [view]);
 
-  // Persist sidebar state changes
   useEffect(() => {
     localStorage.setItem('sidebarState', JSON.stringify(sidebarOpen));
   }, [sidebarOpen]);
@@ -64,7 +60,6 @@ export default function LexiBuildApp() {
 
   return (
     <div className="flex min-h-screen bg-[#0f172a] text-slate-100 font-sans overflow-hidden">
-      {/* Sidebar is now persistent and never unmounts */}
       <Sidebar 
         view={view} 
         setView={setView} 
@@ -73,10 +68,8 @@ export default function LexiBuildApp() {
         onSettingsClick={() => setShowSettings(true)}
       />
 
-      {/* Main content area shifts based on sidebar state */}
-      <main className={`flex-1 transition-all duration-500 ease-in-out ${sidebarOpen ? 'ml-64' : 'ml-16'} h-screen overflow-hidden`}>
+      <main className={`flex-1 transition-all duration-300 ease-in-out ${sidebarOpen ? 'ml-64' : 'ml-16'} h-screen overflow-hidden`}>
         <div className="h-full w-full">
-          {/* Default 'home' now loads your high-quality MainMenu */}
           {view === 'home' && (
             <div className="h-full overflow-y-auto">
               <MainMenu setView={setView} onSettingsClick={() => setShowSettings(true)} />
@@ -92,7 +85,6 @@ export default function LexiBuildApp() {
             />
           )}
 
-          {/* All other views remain standard */}
           {view === 'parse' && <div className="p-8 h-full overflow-y-auto"><ParseView loadWords={loadWords} settings={settings} /></div>}
           {view === 'flashcards' && <div className="p-8 h-full overflow-y-auto"><FlashcardView words={words} settings={settings} /></div>}
           {view === 'flashcard-stats' && <div className="p-8 h-full overflow-y-auto"><FlashcardStatsView words={words} loadWords={loadWords} setView={setView} /></div>}
@@ -106,4 +98,3 @@ export default function LexiBuildApp() {
     </div>
   );
 }
-
