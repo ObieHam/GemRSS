@@ -1,6 +1,6 @@
-import { LayoutDashboard, Upload, FileText, Brain, Volume2, List, BarChart3, Settings, Menu, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { LayoutDashboard, Upload, FileText, Brain, Volume2, List, BarChart3, Settings, ChevronLeft, ChevronRight } from 'lucide-react';
 
-export default function Sidebar({ view, setView, sidebarOpen, setSidebarOpen, onSettingsClick }) {
+export default function Sidebar({ view, setView, sidebarOpen, setSidebarOpen, onSettingsClick, isFlashing }) {
   const menuItems = [
     { id: 'home', label: 'Home', icon: LayoutDashboard },
     { id: 'parse', label: 'Parse PDF', icon: Upload },
@@ -13,42 +13,53 @@ export default function Sidebar({ view, setView, sidebarOpen, setSidebarOpen, on
   ];
 
   return (
-    <div className={`fixed top-0 left-0 h-full bg-[#1e293b] border-r border-slate-700/50 transition-all duration-300 z-50 ${sidebarOpen ? 'w-64' : 'w-20'}`}>
-      <div className="p-4 h-full flex flex-col">
-        <div className="flex items-center mb-8 h-8">
-          <div className={`transition-all duration-300 overflow-hidden whitespace-nowrap ${sidebarOpen ? 'w-full opacity-100' : 'w-0 opacity-0'}`}>
-            <span className="text-xl font-black text-white ml-2">LexiBuild</span>
-          </div>
+    <div className={`fixed top-0 left-0 h-full transition-all duration-300 z-50 border-r border-slate-700/50 
+      ${sidebarOpen ? 'w-64' : 'w-16'} 
+      ${isFlashing ? 'bg-emerald-500/20 shadow-[inset_-10px_0_20px_rgba(16,185,129,0.1)]' : 'bg-[#1e293b]'}`}>
+      
+      <div className="p-3 h-full flex flex-col">
+        <div className="flex items-center justify-between mb-4">
+          {sidebarOpen && <div className="text-xl font-black text-white ml-2">LexiBuild</div>}
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-2 hover:bg-slate-700/50 rounded-lg transition-all flex-shrink-0"
+            className="p-2 hover:bg-slate-700/50 rounded-lg transition-all ml-auto text-slate-400"
             title={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
           >
-            {sidebarOpen ? <ChevronLeft size={20} className="text-slate-400" /> : <ChevronRight size={20} className="text-slate-400" />}
+            {sidebarOpen ? <ChevronLeft size={20} /> : <ChevronRight size={20} />}
           </button>
         </div>
         
-        <nav className="space-y-2 flex-1">
+        <nav className="space-y-1 flex-1">
           {menuItems.map((item) => (
             <button
               key={item.id}
               onClick={() => setView(item.id)}
-              className={`w-full flex items-center p-3 rounded-xl transition-all group ${
-                view === item.id ? 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/20' : 'hover:bg-slate-700/30 text-slate-400'
+              className={`w-full flex items-center transition-all ${
+                sidebarOpen ? 'gap-3 p-2.5' : 'justify-center p-2.5'
+              } rounded-lg ${
+                view === item.id 
+                  ? 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/20' 
+                  : isFlashing ? 'text-emerald-400' : 'hover:bg-slate-700/30 text-slate-400'
               }`}
             >
-              {/* Keep icon size consistent at 20 to prevent jumping */}
-              <item.icon size={20} className="flex-shrink-0" />
-              
-              {/* Animate text label with opacity and width instead of conditional rendering */}
-              <span className={`text-sm font-semibold whitespace-nowrap transition-all duration-300 overflow-hidden ${
-                sidebarOpen ? 'ml-3 opacity-100 w-auto' : 'ml-0 opacity-0 w-0'
-              }`}>
-                {item.label}
-              </span>
+              <item.icon size={sidebarOpen ? 18 : 24} />
+              {sidebarOpen && <span className="text-sm font-semibold">{item.label}</span>}
             </button>
           ))}
         </nav>
+
+        {/* Settings linked at the bottom */}
+        <div className="pt-4 border-t border-slate-700/50">
+          <button
+            onClick={onSettingsClick}
+            className={`w-full flex items-center transition-all ${
+              sidebarOpen ? 'gap-3 p-2.5' : 'justify-center p-2.5'
+            } rounded-lg hover:bg-slate-700/30 text-slate-400`}
+          >
+            <Settings size={sidebarOpen ? 18 : 24} />
+            {sidebarOpen && <span className="text-sm font-semibold">Settings</span>}
+          </button>
+        </div>
       </div>
     </div>
   );
