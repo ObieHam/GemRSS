@@ -24,8 +24,13 @@ function PDFPage({ pdfDoc, pageNum, scale, onWordClick, highlightedWords }) {
         const canvas = canvasRef.current;
         const context = canvas.getContext('2d');
         
-        canvas.height = viewport.height;
-        canvas.width = viewport.width;
+        // Use device pixel ratio for sharper rendering
+        const dpr = window.devicePixelRatio || 1;
+        canvas.height = viewport.height * dpr;
+        canvas.width = viewport.width * dpr;
+        canvas.style.height = viewport.height + 'px';
+        canvas.style.width = viewport.width + 'px';
+        context.scale(dpr, dpr);
 
         // Cancel any ongoing render
         if (renderTask) {
@@ -72,8 +77,8 @@ function PDFPage({ pdfDoc, pageNum, scale, onWordClick, highlightedWords }) {
             if (isWord) {
               span.style.cursor = 'pointer';
               if (isSaved) {
-                span.style.backgroundColor = 'rgba(251, 191, 36, 0.25)';
-                span.style.borderBottom = '2px solid rgba(245, 158, 11, 0.5)';
+                span.style.backgroundColor = 'rgba(251, 191, 36, 0.3)';
+                span.style.borderBottom = '2px solid rgba(245, 158, 11, 0.6)';
               }
               span.addEventListener('mouseenter', () => {
                 if (!isSaved) {
@@ -124,7 +129,9 @@ export default function ReaderView({ settings, loadWords, words, onExit }) {
   const [numPages, setNumPages] = useState(0);
   const [scale, setScale] = useState(1.5);
   const [definitionPanel, setDefinitionPanel] = useState(null);
+  const [sidePanelOpen, setSidePanelOpen] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [firstWordLoaded, setFirstWordLoaded] = useState(false);
 
   const fileInputRef = useRef(null);
 
@@ -132,11 +139,32 @@ export default function ReaderView({ settings, loadWords, words, onExit }) {
     const file = e.target.files[0];
     if (!file) return;
     setLoading(true);
+    setFirstWordLoaded(false);
     try {
       const arrayBuffer = await file.arrayBuffer();
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
       setPdfDoc(pdf);
       setNumPages(pdf.numPages);
+      
+      // Load first new word from the PDF
+      setTimeout(async () => {
+        const page = await pdf.getPage(1);
+        const textContent = await page.getTextContent();
+        
+        for (const item of textContent.items) {
+          const tokens = item.str.split(/\s+/);
+          for (const token of tokens) {
+            const cleanWord = token.replace(/[^a-zA-Z]/g, "").toLowerCase();
+            if (cleanWord.length >= 3 && !words.find(w => w.word === cleanWord)) {
+              await handleWordClick(token);
+              setFirstWordLoaded(true);
+              break;
+            }
+          }
+          if (firstWordLoaded) break;
+        }
+      }, 500);
+      
     } catch (err) {
       console.error(err);
       alert('Error loading PDF');
@@ -147,6 +175,7 @@ export default function ReaderView({ settings, loadWords, words, onExit }) {
 
   const handleWordClick = async (word) => {
     const cleanWord = word.replace(/[^a-zA-Z]/g, "").toLowerCase();
+    setSidePanelOpen(true);
     setDefinitionPanel({ loading: true, word: cleanWord });
     const info = await fetchDefinition(cleanWord, settings);
     setDefinitionPanel(info);
@@ -168,8 +197,8 @@ export default function ReaderView({ settings, loadWords, words, onExit }) {
   return (
     <div className="flex h-full w-full bg-[#0f172a] overflow-hidden">
       
-      {/* PDF Scroll Area */}
-      <div className="flex-1 overflow-y-auto p-10">
+      {/* PDF Scroll Area - Fixed width to prevent jumping */}
+      <div className={`flex-1 overflow-y-auto p-10 transition-all duration-300 ${sidePanelOpen ? 'mr-[400px]' : 'mr-0'}`}>
         {!pdfDoc ? (
           <div className="h-full flex flex-col items-center justify-center">
             <h2 className="text-4xl font-black mb-6 text-white">Interactive Reader</h2>
@@ -223,56 +252,67 @@ export default function ReaderView({ settings, loadWords, words, onExit }) {
         </div>
       )}
 
-      {/* Definition Sidebar */}
-      {definitionPanel && (
-        <div className="w-[400px] h-full bg-slate-950 border-l-2 border-slate-800 flex flex-col shrink-0">
-          <div className="p-8 border-b-2 border-slate-800 flex justify-between items-center">
-            <h3 className="text-2xl font-black capitalize text-white">{definitionPanel.word}</h3>
-            <button 
-              onClick={() => setDefinitionPanel(null)} 
-              className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 transition-colors"
-            >
-              <X size={20} />
-            </button>
-          </div>
-          <div className="flex-1 overflow-y-auto p-8 space-y-6">
-            {definitionPanel.loading ? (
-              <Loader2 className="animate-spin text-indigo-500 mx-auto mt-10" size={40} />
-            ) : (
-              <>
-                <div>
-                  <p className="text-xs font-black text-indigo-400 uppercase tracking-widest mb-2">Definition</p>
-                  <p className="text-slate-200 text-lg leading-relaxed">{definitionPanel.definition}</p>
-                </div>
-                {definitionPanel.example && (
-                  <div>
-                    <p className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2">Example</p>
-                    <blockquote className="text-slate-400 italic border-l-2 border-slate-700 pl-4">
-                      "{definitionPanel.example}"
-                    </blockquote>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-          {!definitionPanel.loading && (
-             <div className="p-6 border-t-2 border-slate-800 space-y-3 bg-slate-950">
-                <button 
-                  onClick={() => playAudio(definitionPanel)} 
-                  className="w-full flex items-center justify-center gap-2 py-3 bg-slate-800 hover:bg-slate-700 rounded-xl font-bold text-white transition-colors"
-                >
-                  <Volume2 size={18} /> Play Audio
-                </button>
-                <button 
-                  onClick={() => db.vocabulary.add(definitionPanel).then(loadWords)} 
-                  className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-black text-white transition-colors"
-                >
-                  <Plus size={18} className="inline mr-2" /> Add to Library
-                </button>
-             </div>
-          )}
+      {/* Definition Sidebar - Fixed position, always reserves space */}
+      <div className={`fixed right-0 top-0 w-[400px] h-full bg-slate-950 border-l-2 border-slate-800 flex flex-col transition-transform duration-300 ${sidePanelOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+        <div className="p-8 border-b-2 border-slate-800 flex justify-between items-center">
+          <h3 className="text-2xl font-black capitalize text-white">
+            {definitionPanel?.word || 'Select a word'}
+          </h3>
+          <button 
+            onClick={() => setSidePanelOpen(false)} 
+            className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 transition-colors"
+          >
+            <X size={20} />
+          </button>
         </div>
-      )}
+        
+        {definitionPanel ? (
+          <>
+            <div className="flex-1 overflow-y-auto p-8 space-y-6">
+              {definitionPanel.loading ? (
+                <Loader2 className="animate-spin text-indigo-500 mx-auto mt-10" size={40} />
+              ) : (
+                <>
+                  <div>
+                    <p className="text-xs font-black text-indigo-400 uppercase tracking-widest mb-2">Definition</p>
+                    <p className="text-slate-200 text-lg leading-relaxed">{definitionPanel.definition}</p>
+                  </div>
+                  {definitionPanel.example && (
+                    <div>
+                      <p className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2">Example</p>
+                      <blockquote className="text-slate-400 italic border-l-2 border-slate-700 pl-4">
+                        "{definitionPanel.example}"
+                      </blockquote>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+            {!definitionPanel.loading && (
+               <div className="p-6 border-t-2 border-slate-800 space-y-3 bg-slate-950">
+                  <button 
+                    onClick={() => playAudio(definitionPanel)} 
+                    className="w-full flex items-center justify-center gap-2 py-3 bg-slate-800 hover:bg-slate-700 rounded-xl font-bold text-white transition-colors"
+                  >
+                    <Volume2 size={18} /> Play Audio
+                  </button>
+                  <button 
+                    onClick={() => db.vocabulary.add(definitionPanel).then(loadWords)} 
+                    className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-black text-white transition-colors"
+                  >
+                    <Plus size={18} className="inline mr-2" /> Add to Library
+                  </button>
+               </div>
+            )}
+          </>
+        ) : (
+          <div className="flex-1 flex items-center justify-center p-8">
+            <div className="text-center text-slate-500">
+              <p className="text-lg font-medium">Click on any word in the PDF to see its definition</p>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
