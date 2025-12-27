@@ -20,9 +20,7 @@ if (typeof window !== 'undefined') {
 }
 
 export default function LexiBuildApp() {
-  // Always start with 'home' view - don't persist reader view
   const [view, setView] = useState('home');
-  
   const [sidebarOpen, setSidebarOpen] = useState(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('sidebarState');
@@ -34,8 +32,10 @@ export default function LexiBuildApp() {
   const [words, setWords] = useState([]);
   const [settings, setSettings] = useState(getSettings());
   const [showSettings, setShowSettings] = useState(false);
+  
+  // State for sidebar flashing
+  const [flashSidebar, setFlashSidebar] = useState(false);
 
-  // Only persist non-reader views
   useEffect(() => {
     if (view !== 'reader') {
       localStorage.setItem('lastView', view);
@@ -58,6 +58,12 @@ export default function LexiBuildApp() {
     saveSettings(newSettings);
   };
 
+  // Trigger for sidebar flash
+  const triggerSidebarFlash = () => {
+    setFlashSidebar(true);
+    setTimeout(() => setFlashSidebar(false), 600);
+  };
+
   return (
     <div className="flex min-h-screen bg-[#0f172a] text-slate-100 font-sans overflow-hidden">
       <Sidebar 
@@ -66,6 +72,7 @@ export default function LexiBuildApp() {
         sidebarOpen={sidebarOpen} 
         setSidebarOpen={setSidebarOpen}
         onSettingsClick={() => setShowSettings(true)}
+        isFlashing={flashSidebar} // Pass flash state
       />
 
       <main className={`flex-1 transition-all duration-300 ease-in-out ${sidebarOpen ? 'ml-64' : 'ml-16'} h-screen overflow-hidden`}>
@@ -88,7 +95,17 @@ export default function LexiBuildApp() {
           {view === 'parse' && <div className="p-8 h-full overflow-y-auto"><ParseView loadWords={loadWords} settings={settings} /></div>}
           {view === 'flashcards' && <div className="p-8 h-full overflow-y-auto"><FlashcardView words={words} settings={settings} /></div>}
           {view === 'flashcard-stats' && <div className="p-8 h-full overflow-y-auto"><FlashcardStatsView words={words} loadWords={loadWords} setView={setView} /></div>}
-          {view === 'spelling' && <div className="p-8 h-full overflow-y-auto"><SpellingView words={words} settings={settings} /></div>}
+          
+          {view === 'spelling' && (
+            <div className="p-8 h-full overflow-y-auto">
+              <SpellingView 
+                words={words} 
+                settings={settings} 
+                onSuccessFlash={triggerSidebarFlash} // Pass trigger to spelling view
+              />
+            </div>
+          )}
+          
           {view === 'spelling-stats' && <div className="p-8 h-full overflow-y-auto"><SpellingStatsView words={words} loadWords={loadWords} setView={setView} /></div>}
           {view === 'browse' && <div className="p-8 h-full overflow-y-auto"><BrowseView words={words} loadWords={loadWords} settings={settings} setView={setView} /></div>}
         </div>
