@@ -6,7 +6,6 @@ import { db } from '../lib/storage';
 import { getSettings, saveSettings } from '../lib/utils';
 import Sidebar from '../components/Sidebar';
 import MainMenu from '../components/MainMenu'; // Integrated your landing menu
-import DashboardView from '../components/DashboardView';
 import ParseView from '../components/ParseView';
 import BrowseView from '../components/BrowseView';
 import ReaderView from '../components/ReaderView';
@@ -84,12 +83,6 @@ export default function LexiBuildApp() {
             </div>
           )}
 
-          {view === 'dashboard' && (
-            <div className="p-8 h-full overflow-y-auto">
-              <DashboardView words={words} setView={setView} />
-            </div>
-          )}
-
           {view === 'reader' && (
             <ReaderView 
               settings={settings} 
@@ -113,3 +106,4 @@ export default function LexiBuildApp() {
     </div>
   );
 }
+
