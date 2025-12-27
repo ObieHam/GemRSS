@@ -21,41 +21,46 @@ export default function MainMenu({ setView, onSettingsClick }) {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <button
             onClick={() => setView('parse')}
-            className="group bg-gradient-to-br from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 p-10 rounded-[2.5rem] flex flex-col items-center justify-center text-center transition-all duration-300 hover:scale-105 shadow-2xl shadow-indigo-500/20 aspect-square"
+            className="group bg-gradient-to-br from-indigo-600 to-indigo-500 hover:scale-105 p-8 rounded-3xl flex flex-col items-center justify-center text-center transition-all shadow-xl shadow-indigo-500/10 aspect-square border border-white/5"
           >
-            <Upload size={48} className="text-white mb-4 group-hover:scale-110 transition-transform" />
-            <h3 className="text-xl font-bold text-white leading-tight">Parse New PDF</h3>
-            <p className="text-white/70 text-sm mt-2">Extract vocabulary</p>
+            <Upload size={42} className="text-white mb-4 group-hover:scale-110 transition-transform" />
+            <h3 className="text-lg font-bold text-white leading-tight">Parse PDF</h3>
+            <p className="text-white/60 text-xs mt-2">Extract words</p>
           </button>
 
           <button
             onClick={() => setView('reader')}
-            className="group bg-gradient-to-br from-pink-600 to-pink-700 hover:from-pink-500 hover:to-pink-600 p-10 rounded-[2.5rem] flex flex-col items-center justify-center text-center transition-all duration-300 hover:scale-105 shadow-2xl shadow-pink-500/20 aspect-square"
+            className="group bg-gradient-to-br from-indigo-600 to-indigo-500 hover:scale-105 p-8 rounded-3xl flex flex-col items-center justify-center text-center transition-all shadow-xl shadow-indigo-500/10 aspect-square border border-white/5"
           >
-            <FileText size={48} className="text-white mb-4 group-hover:scale-110 transition-transform" />
-            <h3 className="text-xl font-bold text-white leading-tight">PDF Reader</h3>
-            <p className="text-white/70 text-sm mt-2">Read interactively</p>
+            <FileText size={42} className="text-white mb-4 group-hover:scale-110 transition-transform" />
+            <h3 className="text-lg font-bold text-white leading-tight">PDF Reader</h3>
+            <p className="text-white/60 text-xs mt-2">Interactive read</p>
           </button>
 
           <button
             onClick={() => setView('flashcards')}
-            className="group bg-gradient-to-br from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 p-10 rounded-[2.5rem] flex flex-col items-center justify-center text-center transition-all duration-300 hover:scale-105 shadow-2xl shadow-emerald-500/20 aspect-square"
+            className="group bg-gradient-to-br from-indigo-600 to-indigo-500 hover:scale-105 p-8 rounded-3xl flex flex-col items-center justify-center text-center transition-all shadow-xl shadow-indigo-500/10 aspect-square border border-white/5"
           >
-            <Brain size={48} className="text-white mb-4 group-hover:scale-110 transition-transform" />
-            <h3 className="text-xl font-bold text-white leading-tight">Flashcard Session</h3>
-            <p className="text-white/70 text-sm mt-2">Review due cards</p>
+            <Brain size={42} className="text-white mb-4 group-hover:scale-110 transition-transform" />
+            <h3 className="text-lg font-bold text-white leading-tight">Flashcards</h3>
+            <p className="text-white/60 text-xs mt-2">Review cards</p>
           </button>
 
           <button
             onClick={() => setView('spelling')}
-            className="group bg-gradient-to-br from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 p-10 rounded-[2.5rem] flex flex-col items-center justify-center text-center transition-all duration-300 hover:scale-105 shadow-2xl shadow-blue-500/20 aspect-square"
+            className="group bg-gradient-to-br from-indigo-600 to-indigo-500 hover:scale-105 p-8 rounded-3xl flex flex-col items-center justify-center text-center transition-all shadow-xl shadow-indigo-500/10 aspect-square border border-white/5"
           >
-            <Volume2 size={48} className="text-white mb-4 group-hover:scale-110 transition-transform" />
-            <h3 className="text-xl font-bold text-white leading-tight">Spelling Practice</h3>
-            <p className="text-white/70 text-sm mt-2">Master typing</p>
+            <Volume2 size={42} className="text-white mb-4 group-hover:scale-110 transition-transform" />
+            <h3 className="text-lg font-bold text-white leading-tight">Spelling</h3>
+            <p className="text-white/60 text-xs mt-2">Type practice</p>
           </button>
         </div>
 
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <button
+            onClick={() => setView('browse')}
+            className="group bg-[#1e293b] hover:bg-slate-800 border border-slate-700/50 hover:border-indigo-500/30 p-8 rounded-3xl transition-all duration-300 hover:scale-[1.01] shadow-xl"
+          >
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <button
             onClick={() => setView('browse')}
