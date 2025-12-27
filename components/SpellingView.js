@@ -1,16 +1,18 @@
 import { useState, useEffect, useRef } from 'react';
-import { Volume2, CheckCircle, SkipForward, ChevronRight, Loader2, TrendingUp, GraduationCap, PlayCircle } from 'lucide-react';
+import { Volume2, CheckCircle, SkipForward, ChevronRight, Loader2, TrendingUp, GraduationCap, PlayCircle, PlusCircle, Edit3 } from 'lucide-react';
 import { spellingDb } from '../lib/spellingStorage';
 import { IELTS_WORDS } from '../lib/ieltsWords';
+import { db } from '../lib/storage';
 
 export default function SpellingView({ words, settings }) {
   const [mode, setMode] = useState('menu'); 
   const [practiceType, setPracticeType] = useState('general');
   const [session, setSession] = useState({ currentIndex: 0, list: [], correct: 0, incorrect: 0 });
   const [userInput, setUserInput] = useState("");
-  const [feedback, setFeedback] = useState(null); // 'correct', 'incorrect'
+  const [feedback, setFeedback] = useState(null); 
   const [stats, setStats] = useState({ general: null, ielts: null });
-  const [loadingAudio, setLoadingAudio] = useState(false);
+  const [isEditingExample, setIsEditingExample] = useState(false);
+  const [newExample, setNewExample] = useState("");
   const inputRef = useRef(null);
 
   useEffect(() => { loadAllStats(); }, [words]);
@@ -25,7 +27,7 @@ export default function SpellingView({ words, settings }) {
     setPracticeType(type);
     const wordList = type === 'ielts' ? IELTS_WORDS : words;
     const due = await spellingDb.getDueCards(wordList, type);
-    if (due.length === 0) return alert(`All caught up on ${type === 'ielts' ? 'IELTS' : 'Library'} words!`);
+    if (due.length === 0) return alert(`All caught up on ${type} words!`);
     
     setSession({ currentIndex: 0, list: due, correct: 0, incorrect: 0 });
     setMode('session');
@@ -51,6 +53,17 @@ export default function SpellingView({ words, settings }) {
     window.speechSynthesis.speak(utterance);
   };
 
+  const handleSaveExample = async () => {
+    if (practiceType === 'ielts') return; // IELTS list is static
+    const wordData = await db.vocabulary.where('word').equals(currentWord).first();
+    if (wordData) {
+        await db.vocabulary.update(wordData.id, { example: newExample });
+        // Update current item in session list
+        session.list[session.currentIndex].word.example = newExample;
+    }
+    setIsEditingExample(false);
+  };
+
   const checkAnswer = () => {
     if (!userInput.trim()) return;
     const isCorrect = userInput.toLowerCase().trim() === currentWord.toLowerCase().trim();
@@ -58,14 +71,11 @@ export default function SpellingView({ words, settings }) {
 
     if (isCorrect) {
       setFeedback('correct');
-      // FSRS: Map correct spelling to "Good" (2)
       spellingDb.recordResult(wordId, 2, practiceType); 
       setSession(s => ({ ...s, correct: s.correct + 1 }));
-      // Transition automatically on success
       setTimeout(nextWord, 1000); 
     } else {
       setFeedback('incorrect');
-      // FSRS: Map incorrect spelling to "Again" (0)
       spellingDb.recordResult(wordId, 0, practiceType); 
       setSession(s => ({ ...s, incorrect: s.incorrect + 1 }));
     }
@@ -76,6 +86,7 @@ export default function SpellingView({ words, settings }) {
       setSession(s => ({ ...s, currentIndex: s.currentIndex + 1 }));
       setFeedback(null);
       setUserInput("");
+      setIsEditingExample(false);
     } else {
       setMode('menu');
       loadAllStats();
@@ -109,7 +120,7 @@ export default function SpellingView({ words, settings }) {
         </header>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* General Library Mode Card */}
+          {/* My Library Stats Card */}
           <div className="bg-[#1e293b] border border-slate-700/50 p-8 rounded-[2rem] shadow-xl flex flex-col items-center text-center">
             <TrendingUp className="text-blue-500 mb-4" size={40} />
             <h3 className="text-2xl font-bold text-white mb-2">My Library</h3>
@@ -118,12 +129,10 @@ export default function SpellingView({ words, settings }) {
               <span>New: <span className="text-emerald-400">{stats.general?.newWords || 0}</span></span>
               <span>Learning: <span className="text-orange-400">{stats.general?.learning || 0}</span></span>
             </div>
-            <button onClick={() => startSession('general')} className="w-full py-4 bg-blue-600 hover:bg-blue-500 rounded-2xl font-black text-white transition-all shadow-lg shadow-blue-600/20">
-              Start Practice
-            </button>
+            <button onClick={() => startSession('general')} className="w-full py-4 bg-blue-600 hover:bg-blue-500 rounded-2xl font-black text-white transition-all shadow-lg">Start Practice</button>
           </div>
 
-          {/* IELTS Masterlist Mode Card */}
+          {/* IELTS Masterlist Stats Card */}
           <div className="bg-[#1e293b] border border-slate-700/50 p-8 rounded-[2rem] shadow-xl flex flex-col items-center text-center">
             <GraduationCap className="text-emerald-500 mb-4" size={40} />
             <h3 className="text-2xl font-bold text-white mb-2">IELTS Masterlist</h3>
@@ -132,9 +141,7 @@ export default function SpellingView({ words, settings }) {
               <span>New: <span className="text-emerald-400">{stats.ielts?.newWords || 0}</span></span>
               <span>Learning: <span className="text-orange-400">{stats.ielts?.learning || 0}</span></span>
             </div>
-            <button onClick={() => startSession('ielts')} className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 rounded-2xl font-black text-white transition-all shadow-lg shadow-emerald-600/20">
-              Master IELTS
-            </button>
+            <button onClick={() => startSession('ielts')} className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 rounded-2xl font-black text-white transition-all shadow-lg">Master IELTS</button>
           </div>
         </div>
       </div>
@@ -143,6 +150,7 @@ export default function SpellingView({ words, settings }) {
 
   return (
     <div className="p-8 max-w-6xl mx-auto space-y-6">
+      {/* Session Progress Header */}
       <div className="bg-slate-900/50 p-6 rounded-2xl border border-slate-700/30 flex justify-between items-center font-black uppercase text-[10px] tracking-widest">
         <span className="text-blue-400">{practiceType === 'ielts' ? 'IELTS MODE' : 'LIBRARY MODE'}</span>
         <span className="text-slate-500">Word {session.currentIndex + 1} / {session.list.length}</span>
@@ -152,23 +160,15 @@ export default function SpellingView({ words, settings }) {
         </div>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-8 items-start min-h-[500px]">
-        {/* Left Section: Question and Input Area */}
-        <div className={`transition-all duration-500 bg-[#1e293b] border border-slate-700/50 rounded-[2.5rem] p-12 text-center shadow-2xl h-full flex flex-col justify-center ${feedback ? 'flex-1' : 'w-full'}`}>
+      <div className="flex flex-col lg:flex-row gap-8 items-stretch min-h-[550px]">
+        {/* Persistent Left Column: Practice Area */}
+        <div className="flex-1 bg-[#1e293b] border border-slate-700/50 rounded-[2.5rem] p-12 text-center shadow-2xl flex flex-col justify-center">
             <div className="flex justify-center gap-4 mb-10">
-              <button 
-                onClick={() => playText(currentWord)} 
-                className="p-6 bg-slate-800 hover:bg-blue-600 rounded-3xl transition-all group shadow-lg"
-                title="Pronounce Word"
-              >
+              <button onClick={() => playText(currentWord)} className="p-6 bg-slate-800 hover:bg-blue-600 rounded-3xl transition-all group shadow-lg">
                 <Volume2 size={48} className="text-white group-hover:scale-105" />
               </button>
               {currentExample && (
-                <button 
-                  onClick={() => playText(currentExample, 1.0)} 
-                  className="p-6 bg-slate-800 hover:bg-emerald-600 rounded-3xl transition-all group shadow-lg"
-                  title="Pronounce Example"
-                >
+                <button onClick={() => playText(currentExample, 1.0)} className="p-6 bg-slate-800 hover:bg-emerald-600 rounded-3xl transition-all group shadow-lg">
                   <PlayCircle size={48} className="text-white group-hover:scale-105" />
                 </button>
               )}
@@ -183,53 +183,103 @@ export default function SpellingView({ words, settings }) {
                 onKeyDown={(e) => e.key === 'Enter' && (feedback === 'incorrect' ? nextWord() : checkAnswer())}
                 placeholder="Type the word..."
                 disabled={feedback === 'correct'}
-                className="w-full bg-slate-950 border border-slate-800 p-8 rounded-3xl text-4xl text-center font-black text-white outline-none focus:border-blue-500 mb-8 transition-all"
+                className="w-full bg-slate-950 border border-slate-800 p-8 rounded-3xl text-4xl text-center font-black text-white outline-none focus:border-blue-500 mb-8"
             />
 
-            {!feedback && (
+            {!feedback ? (
                <div className="grid grid-cols-2 gap-4">
-                  <button onClick={nextWord} className="bg-slate-800 py-5 rounded-3xl font-black text-white flex items-center justify-center gap-2 hover:bg-slate-700 transition-colors">
-                    <SkipForward size={20} /> Skip Word
+                  <button onClick={nextWord} className="bg-slate-800 py-5 rounded-3xl font-black text-white flex items-center justify-center gap-2 hover:bg-slate-700">
+                    <SkipForward size={20} /> Skip
                   </button>
-                  <button onClick={checkAnswer} className="bg-blue-600 py-5 rounded-3xl font-black text-white hover:bg-blue-500 transition-colors shadow-lg shadow-blue-600/20">
+                  <button onClick={checkAnswer} className="bg-blue-600 py-5 rounded-3xl font-black text-white hover:bg-blue-500 shadow-lg">
                     Check Answer
                   </button>
                </div>
+            ) : (
+                <button onClick={nextWord} className="w-full py-6 bg-indigo-600 hover:bg-indigo-500 rounded-3xl font-black text-white text-xl flex items-center justify-center gap-2">
+                    Continue <ChevronRight size={24} />
+                </button>
             )}
         </div>
 
-        {/* Right Section: Dedicated Feedback/Result Area */}
-        {feedback && (
-          <div className="w-full lg:w-[450px] animate-in slide-in-from-right-8 duration-500 flex flex-col gap-4 h-full">
-            {feedback === 'incorrect' && (
-              <div className="bg-red-500/10 border border-red-500/20 rounded-[2rem] p-8 shadow-xl">
-                  <p className="text-red-400 text-xs font-black uppercase mb-4 tracking-widest">Letter Comparison</p>
-                  <div className="mb-8">{renderComparisonVertical()}</div>
-                  <div className="pt-6 border-t border-red-500/20">
-                    <p className="text-slate-500 text-[10px] font-black uppercase mb-2 tracking-widest">Correct Spelling</p>
-                    <p className="text-3xl font-black text-white capitalize mb-4">{currentWord}</p>
-                    {currentExample && (
-                      <p className="text-slate-300 text-lg italic leading-relaxed">"{currentExample}"</p>
+        {/* Persistent Right Column: Feedback or Word Data */}
+        <div className="w-full lg:w-[450px] flex flex-col gap-4">
+            <div className="bg-[#0f172a] border border-slate-800 rounded-[2.5rem] p-8 h-full shadow-inner flex flex-col">
+                {feedback === 'incorrect' ? (
+                  <div className="animate-in fade-in slide-in-from-right-4">
+                      <p className="text-red-400 text-xs font-black uppercase mb-4 tracking-widest">Letter Comparison</p>
+                      <div className="mb-8">{renderComparisonVertical()}</div>
+                      <div className="pt-6 border-t border-slate-800">
+                        <p className="text-slate-500 text-[10px] font-black uppercase mb-2 tracking-widest">Target Spelling</p>
+                        <p className="text-3xl font-black text-white capitalize mb-4">{currentWord}</p>
+                        {currentExample ? (
+                          <p className="text-slate-300 text-lg italic leading-relaxed">"{currentExample}"</p>
+                        ) : (
+                          <button onClick={() => { setIsEditingExample(true); setNewExample(""); }} className="flex items-center gap-2 text-indigo-400 text-sm font-bold hover:text-indigo-300 transition-colors">
+                            <PlusCircle size={16} /> Add Example Sentence
+                          </button>
+                        )}
+                      </div>
+                  </div>
+                ) : feedback === 'correct' ? (
+                  <div className="text-center py-12 flex flex-col items-center justify-center h-full animate-in zoom-in-95">
+                      <div className="bg-emerald-500/20 w-24 h-24 rounded-full flex items-center justify-center mb-6">
+                        <CheckCircle size={48} className="text-emerald-500" />
+                      </div>
+                      <p className="text-white text-3xl font-black mb-2">Well Done!</p>
+                      <p className="text-slate-500 text-sm font-bold">Accuracy maintained.</p>
+                  </div>
+                ) : (
+                  <div className="flex flex-col h-full">
+                    <p className="text-slate-500 text-[10px] font-black uppercase tracking-[0.2em] mb-6">Word Proficiency Info</p>
+                    <div className="space-y-6">
+                        <div className="flex justify-between items-center bg-slate-900/50 p-4 rounded-2xl border border-slate-800">
+                            <span className="text-slate-400 font-bold">FSRS Stability</span>
+                            <span className="text-white font-black">{Math.round(currentItem.card.stability)} days</span>
+                        </div>
+                        <div className="flex justify-between items-center bg-slate-900/50 p-4 rounded-2xl border border-slate-800">
+                            <span className="text-slate-400 font-bold">Repetitions</span>
+                            <span className="text-white font-black">{currentItem.card.repetitions}</span>
+                        </div>
+                        <div className="flex justify-between items-center bg-slate-900/50 p-4 rounded-2xl border border-slate-800">
+                            <span className="text-slate-400 font-bold">Next Review</span>
+                            <span className="text-white font-black">{new Date(currentItem.card.nextReview).toLocaleDateString()}</span>
+                        </div>
+                    </div>
+                    
+                    {!currentExample && practiceType === 'general' && (
+                        <div className="mt-auto pt-6">
+                             <button onClick={() => { setIsEditingExample(true); setNewExample(""); }} className="w-full py-4 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-2xl font-black text-xs uppercase tracking-widest border border-slate-700 transition-all flex items-center justify-center gap-2">
+                                <Edit3 size={14} /> Edit Context Sentence
+                             </button>
+                        </div>
                     )}
                   </div>
-                  <button onClick={nextWord} className="w-full py-5 mt-8 bg-indigo-600 hover:bg-indigo-500 rounded-2xl font-black text-white text-xl flex items-center justify-center gap-2 shadow-xl shadow-indigo-600/20 transition-all">
-                    Continue <ChevronRight size={24} />
-                  </button>
-              </div>
-            )}
-
-            {feedback === 'correct' && (
-              <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-[2rem] p-12 shadow-xl text-center flex flex-col items-center justify-center h-full">
-                  <div className="bg-emerald-500/20 w-24 h-24 rounded-full flex items-center justify-center mb-6">
-                    <CheckCircle size={48} className="text-emerald-500" />
-                  </div>
-                  <p className="text-white text-3xl font-black">Well Done!</p>
-                  <p className="text-emerald-400/60 text-sm mt-2 font-bold">Moving to next word...</p>
-              </div>
-            )}
-          </div>
-        )}
+                )}
+            </div>
+        </div>
       </div>
+
+      {/* Manual Example Input Modal */}
+      {isEditingExample && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[100] flex items-center justify-center p-6">
+          <div className="bg-slate-900 border-2 border-indigo-500/30 rounded-[2.5rem] p-10 max-w-lg w-full shadow-2xl">
+            <h3 className="text-2xl font-black text-white mb-2">Add Word Context</h3>
+            <p className="text-slate-500 text-sm mb-6">Provide an example sentence for <span className="text-indigo-400 font-bold">"{currentWord}"</span> to improve recall.</p>
+            <textarea 
+              autoFocus
+              className="w-full h-32 bg-slate-950 border border-slate-800 rounded-2xl p-4 text-white outline-none focus:border-indigo-500 mb-6"
+              placeholder="e.g., The environment must be protected for future generations."
+              value={newExample}
+              onChange={(e) => setNewExample(e.target.value)}
+            />
+            <div className="flex gap-4">
+              <button onClick={() => setIsEditingExample(false)} className="flex-1 py-4 bg-slate-800 text-white rounded-2xl font-bold">Cancel</button>
+              <button onClick={handleSaveExample} className="flex-1 py-4 bg-indigo-600 text-white rounded-2xl font-bold">Save Example</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
