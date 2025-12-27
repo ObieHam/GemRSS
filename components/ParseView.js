@@ -22,7 +22,6 @@ export default function ParseView({ loadWords, settings }) {
     for (const sentence of sentences) {
       const tokens = sentence.toLowerCase().match(/\b[a-z]{4,}\b/g);
       if (!tokens) continue;
-
       for (const token of tokens) {
         if (COMMON_WORDS.has(token) || !isValidWord(token)) continue;
         const exists = existingWords.find(w => w.word === token);
@@ -31,6 +30,47 @@ export default function ParseView({ loadWords, settings }) {
         }
       }
     }
+
+    const total = allTokens.length;
+    setStatus({ loading: true, msg: `Initializing...`, progress: 0, total });
+
+    const batchSize = 2; // Smaller batch size prevents skipping/rate limits
+    for (let i = 0; i < allTokens.length; i += batchSize) {
+      const currentCount = Math.min(i + batchSize, total);
+      setStatus(prev => ({ 
+        ...prev, 
+        msg: `Processing word ${currentCount} of ${total}`, 
+        progress: i, 
+        total 
+      }));
+
+      const batch = allTokens.slice(i, i + batchSize);
+      const batchResults = await Promise.all(
+        batch.map(async ({ word, context }) => {
+          const info = await fetchDefinition(word, settings);
+          return { word, context, info };
+        })
+      );
+
+      // Necessary delay to ensure UI updates and API stability
+      await new Promise(resolve => setTimeout(resolve, 800));
+
+      for (const { word, context, info } of batchResults) {
+        if (!info.error && !info.rateLimit) {
+          const baseExists = existingWords.find(w => w.word === info.word);
+          if (!baseExists) {
+            await db.vocabulary.add({ ...info, context });
+            existingWords.push({ word: info.word });
+            successfulWords.push(info.word);
+          }
+        }
+      }
+    }
+
+    await loadWords();
+    setAddedWords(successfulWords);
+    setStatus({ loading: false, msg: 'Complete!', progress: total, total });
+  };
 
     const total = allTokens.length;
     setStatus({ loading: true, msg: 'Processing words...', progress: 0, total });
