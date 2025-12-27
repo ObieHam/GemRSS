@@ -8,7 +8,7 @@ export default function SpellingView({ words, settings }) {
   const [practiceType, setPracticeType] = useState('general');
   const [session, setSession] = useState({ currentIndex: 0, list: [], correct: 0, incorrect: 0 });
   const [userInput, setUserInput] = useState("");
-  const [feedback, setFeedback] = useState(null);
+  const [feedback, setFeedback] = useState(null); // 'correct', 'incorrect'
   const [stats, setStats] = useState({ general: null, ielts: null });
   const [loadingAudio, setLoadingAudio] = useState(false);
   const inputRef = useRef(null);
@@ -25,7 +25,7 @@ export default function SpellingView({ words, settings }) {
     setPracticeType(type);
     const wordList = type === 'ielts' ? IELTS_WORDS : words;
     const due = await spellingDb.getDueCards(wordList, type);
-    if (due.length === 0) return alert(`All caught up on ${type} words!`);
+    if (due.length === 0) return alert(`All caught up on ${type === 'ielts' ? 'IELTS' : 'Library'} words!`);
     
     setSession({ currentIndex: 0, list: due, correct: 0, incorrect: 0 });
     setMode('session');
@@ -58,11 +58,14 @@ export default function SpellingView({ words, settings }) {
 
     if (isCorrect) {
       setFeedback('correct');
+      // FSRS: Map correct spelling to "Good" (2)
       spellingDb.recordResult(wordId, 2, practiceType); 
       setSession(s => ({ ...s, correct: s.correct + 1 }));
+      // Transition automatically on success
       setTimeout(nextWord, 1000); 
     } else {
       setFeedback('incorrect');
+      // FSRS: Map incorrect spelling to "Again" (0)
       spellingDb.recordResult(wordId, 0, practiceType); 
       setSession(s => ({ ...s, incorrect: s.incorrect + 1 }));
     }
@@ -106,11 +109,11 @@ export default function SpellingView({ words, settings }) {
         </header>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* General Library Mode */}
+          {/* General Library Mode Card */}
           <div className="bg-[#1e293b] border border-slate-700/50 p-8 rounded-[2rem] shadow-xl flex flex-col items-center text-center">
             <TrendingUp className="text-blue-500 mb-4" size={40} />
             <h3 className="text-2xl font-bold text-white mb-2">My Library</h3>
-            <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-6 flex gap-3">
+            <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-6 flex flex-col gap-1">
               <span>Due: <span className="text-blue-400">{stats.general?.dueToday || 0}</span></span>
               <span>New: <span className="text-emerald-400">{stats.general?.newWords || 0}</span></span>
               <span>Learning: <span className="text-orange-400">{stats.general?.learning || 0}</span></span>
@@ -120,11 +123,11 @@ export default function SpellingView({ words, settings }) {
             </button>
           </div>
 
-          {/* IELTS Masterlist Mode */}
+          {/* IELTS Masterlist Mode Card */}
           <div className="bg-[#1e293b] border border-slate-700/50 p-8 rounded-[2rem] shadow-xl flex flex-col items-center text-center">
             <GraduationCap className="text-emerald-500 mb-4" size={40} />
             <h3 className="text-2xl font-bold text-white mb-2">IELTS Masterlist</h3>
-            <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-6 flex gap-3">
+            <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-6 flex flex-col gap-1">
               <span>Due: <span className="text-blue-400">{stats.ielts?.dueToday || 0}</span></span>
               <span>New: <span className="text-emerald-400">{stats.ielts?.newWords || 0}</span></span>
               <span>Learning: <span className="text-orange-400">{stats.ielts?.learning || 0}</span></span>
@@ -139,7 +142,7 @@ export default function SpellingView({ words, settings }) {
   }
 
   return (
-    <div className="p-8 max-w-4xl mx-auto space-y-6">
+    <div className="p-8 max-w-6xl mx-auto space-y-6">
       <div className="bg-slate-900/50 p-6 rounded-2xl border border-slate-700/30 flex justify-between items-center font-black uppercase text-[10px] tracking-widest">
         <span className="text-blue-400">{practiceType === 'ielts' ? 'IELTS MODE' : 'LIBRARY MODE'}</span>
         <span className="text-slate-500">Word {session.currentIndex + 1} / {session.list.length}</span>
@@ -149,74 +152,83 @@ export default function SpellingView({ words, settings }) {
         </div>
       </div>
 
-      <div className="bg-[#1e293b] border border-slate-700/50 rounded-[2.5rem] p-12 text-center shadow-2xl">
-          <div className="flex justify-center gap-4 mb-10">
-            <button 
-              onClick={() => playText(currentWord)} 
-              className="p-6 bg-slate-800 hover:bg-blue-600 rounded-3xl transition-all group shadow-lg"
-              title="Pronounce Word"
-            >
-              <Volume2 size={48} className="text-white group-hover:scale-105" />
-            </button>
-            {currentExample && (
+      <div className="flex flex-col lg:flex-row gap-8 items-start min-h-[500px]">
+        {/* Left Section: Question and Input Area */}
+        <div className={`transition-all duration-500 bg-[#1e293b] border border-slate-700/50 rounded-[2.5rem] p-12 text-center shadow-2xl h-full flex flex-col justify-center ${feedback ? 'flex-1' : 'w-full'}`}>
+            <div className="flex justify-center gap-4 mb-10">
               <button 
-                onClick={() => playText(currentExample, 1.0)} 
-                className="p-6 bg-slate-800 hover:bg-emerald-600 rounded-3xl transition-all group shadow-lg"
-                title="Pronounce Example"
+                onClick={() => playText(currentWord)} 
+                className="p-6 bg-slate-800 hover:bg-blue-600 rounded-3xl transition-all group shadow-lg"
+                title="Pronounce Word"
               >
-                <PlayCircle size={48} className="text-white group-hover:scale-105" />
+                <Volume2 size={48} className="text-white group-hover:scale-105" />
               </button>
+              {currentExample && (
+                <button 
+                  onClick={() => playText(currentExample, 1.0)} 
+                  className="p-6 bg-slate-800 hover:bg-emerald-600 rounded-3xl transition-all group shadow-lg"
+                  title="Pronounce Example"
+                >
+                  <PlayCircle size={48} className="text-white group-hover:scale-105" />
+                </button>
+              )}
+            </div>
+
+            <input
+                ref={inputRef}
+                type="text"
+                autoFocus
+                value={userInput}
+                onChange={(e) => setUserInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && (feedback === 'incorrect' ? nextWord() : checkAnswer())}
+                placeholder="Type the word..."
+                disabled={feedback === 'correct'}
+                className="w-full bg-slate-950 border border-slate-800 p-8 rounded-3xl text-4xl text-center font-black text-white outline-none focus:border-blue-500 mb-8 transition-all"
+            />
+
+            {!feedback && (
+               <div className="grid grid-cols-2 gap-4">
+                  <button onClick={nextWord} className="bg-slate-800 py-5 rounded-3xl font-black text-white flex items-center justify-center gap-2 hover:bg-slate-700 transition-colors">
+                    <SkipForward size={20} /> Skip Word
+                  </button>
+                  <button onClick={checkAnswer} className="bg-blue-600 py-5 rounded-3xl font-black text-white hover:bg-blue-500 transition-colors shadow-lg shadow-blue-600/20">
+                    Check Answer
+                  </button>
+               </div>
+            )}
+        </div>
+
+        {/* Right Section: Dedicated Feedback/Result Area */}
+        {feedback && (
+          <div className="w-full lg:w-[450px] animate-in slide-in-from-right-8 duration-500 flex flex-col gap-4 h-full">
+            {feedback === 'incorrect' && (
+              <div className="bg-red-500/10 border border-red-500/20 rounded-[2rem] p-8 shadow-xl">
+                  <p className="text-red-400 text-xs font-black uppercase mb-4 tracking-widest">Letter Comparison</p>
+                  <div className="mb-8">{renderComparisonVertical()}</div>
+                  <div className="pt-6 border-t border-red-500/20">
+                    <p className="text-slate-500 text-[10px] font-black uppercase mb-2 tracking-widest">Correct Spelling</p>
+                    <p className="text-3xl font-black text-white capitalize mb-4">{currentWord}</p>
+                    {currentExample && (
+                      <p className="text-slate-300 text-lg italic leading-relaxed">"{currentExample}"</p>
+                    )}
+                  </div>
+                  <button onClick={nextWord} className="w-full py-5 mt-8 bg-indigo-600 hover:bg-indigo-500 rounded-2xl font-black text-white text-xl flex items-center justify-center gap-2 shadow-xl shadow-indigo-600/20 transition-all">
+                    Continue <ChevronRight size={24} />
+                  </button>
+              </div>
+            )}
+
+            {feedback === 'correct' && (
+              <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-[2rem] p-12 shadow-xl text-center flex flex-col items-center justify-center h-full">
+                  <div className="bg-emerald-500/20 w-24 h-24 rounded-full flex items-center justify-center mb-6">
+                    <CheckCircle size={48} className="text-emerald-500" />
+                  </div>
+                  <p className="text-white text-3xl font-black">Well Done!</p>
+                  <p className="text-emerald-400/60 text-sm mt-2 font-bold">Moving to next word...</p>
+              </div>
             )}
           </div>
-
-          <input
-              ref={inputRef}
-              type="text"
-              autoFocus
-              value={userInput}
-              onChange={(e) => setUserInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && (feedback === 'incorrect' ? nextWord() : checkAnswer())}
-              placeholder="Type the word..."
-              disabled={feedback === 'correct'}
-              className="w-full bg-slate-950 border border-slate-800 p-8 rounded-3xl text-4xl text-center font-black text-white outline-none focus:border-blue-500 mb-8 transition-all"
-          />
-
-          {feedback === 'incorrect' && (
-            <div className="mt-4 p-8 bg-red-500/10 border border-red-500/20 rounded-3xl animate-in fade-in slide-in-from-top-4">
-                <p className="text-red-400 text-xs font-black uppercase mb-4 tracking-widest">Letter Comparison</p>
-                <div className="mb-8">{renderComparisonVertical()}</div>
-                <div className="pt-6 border-t border-red-500/20">
-                  <p className="text-slate-500 text-[10px] font-black uppercase mb-2 tracking-widest">Correct Spelling</p>
-                  <p className="text-3xl font-black text-white capitalize mb-4">{currentWord}</p>
-                  {currentExample && (
-                    <p className="text-slate-300 text-lg italic italic">"{currentExample}"</p>
-                  )}
-                </div>
-                <button onClick={nextWord} className="w-full py-5 mt-8 bg-indigo-600 hover:bg-indigo-500 rounded-2xl font-black text-white text-xl flex items-center justify-center gap-2 shadow-xl">
-                  Continue Session <ChevronRight size={24} />
-                </button>
-            </div>
-          )}
-
-          {feedback === 'correct' && (
-            <div className="mt-4 p-8 bg-emerald-500/10 border border-emerald-500/20 rounded-3xl animate-in zoom-in-95">
-                <div className="bg-emerald-500/20 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <CheckCircle size={32} className="text-emerald-500" />
-                </div>
-                <p className="text-white text-2xl font-black">Well Done!</p>
-            </div>
-          )}
-
-          {!feedback && (
-             <div className="grid grid-cols-2 gap-4">
-                <button onClick={nextWord} className="bg-slate-800 py-5 rounded-3xl font-black text-white flex items-center justify-center gap-2 hover:bg-slate-700 transition-colors">
-                  <SkipForward size={20} /> Skip
-                </button>
-                <button onClick={checkAnswer} className="bg-blue-600 py-5 rounded-3xl font-black text-white hover:bg-blue-500 transition-colors shadow-lg">
-                  Check Answer
-                </button>
-             </div>
-          )}
+        )}
       </div>
     </div>
   );
