@@ -80,19 +80,20 @@ function PDFPage({ pdfDoc, pageNum, scale, onWordClick, highlightedWords, onFirs
             if (isWord) {
               span.style.cursor = 'pointer';
               
-              // Yellow highlight for saved words
+              // Yellow highlight ONLY for saved words
               if (isSaved) {
-                span.style.backgroundColor = 'rgba(251, 191, 36, 0.35)';
-                span.style.borderBottom = '3px solid rgba(245, 158, 11, 0.7)';
+                span.style.backgroundColor = 'rgba(251, 191, 36, 0.4)';
+                span.style.borderBottom = '3px solid rgba(245, 158, 11, 0.8)';
                 span.style.paddingBottom = '2px';
               }
               
-              // Find first new word for auto-load
+              // Find first new word for auto-load (but don't highlight it)
               if (!isSaved && !firstNewWordFound && pageNum === 1 && onFirstNewWord) {
                 firstNewWordFound = true;
                 setTimeout(() => onFirstNewWord(token), 100);
               }
               
+              // Hover effect for ALL words (saved or not)
               span.addEventListener('mouseenter', () => {
                 if (!isSaved) {
                   span.style.backgroundColor = 'rgba(99, 102, 241, 0.25)';
@@ -143,6 +144,7 @@ export default function ReaderView({ settings, loadWords, words, onExit }) {
   const [definitionPanel, setDefinitionPanel] = useState(null);
   const [loading, setLoading] = useState(false);
   const [firstWordLoaded, setFirstWordLoaded] = useState(false);
+  const containerRef = useRef(null);
 
   const fileInputRef = useRef(null);
 
@@ -154,6 +156,16 @@ export default function ReaderView({ settings, loadWords, words, onExit }) {
     try {
       const arrayBuffer = await file.arrayBuffer();
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      
+      // Calculate initial scale to fit available width
+      const page = await pdf.getPage(1);
+      const viewport = page.getViewport({ scale: 1 });
+      const availableWidth = containerRef.current ? containerRef.current.clientWidth - 80 : window.innerWidth - 480; // Account for padding and sidebar
+      const calculatedScale = availableWidth / viewport.width;
+      
+      // Set scale but cap it at 2.0 to prevent going under controls
+      setScale(Math.min(calculatedScale, 2.0));
+      
       setPdfDoc(pdf);
       setNumPages(pdf.numPages);
     } catch (err) {
@@ -188,14 +200,23 @@ export default function ReaderView({ settings, loadWords, words, onExit }) {
   };
 
   const adjustScale = (delta) => {
-    setScale(prev => Math.max(0.5, Math.min(3, prev + delta)));
+    setScale(prev => {
+      const newScale = prev + delta;
+      // Prevent scale from going too large
+      if (containerRef.current && pdfDoc) {
+        const availableWidth = containerRef.current.clientWidth - 80;
+        // Don't allow zooming that would make PDF wider than available space
+        return Math.max(0.5, Math.min(newScale, 2.5));
+      }
+      return Math.max(0.5, Math.min(3, newScale));
+    });
   };
 
   return (
     <div className="flex h-full w-full bg-[#0f172a] overflow-hidden">
       
       {/* PDF Scroll Area - Fixed with permanent right margin */}
-      <div className="flex-1 overflow-y-auto p-10 pr-[420px]">
+      <div ref={containerRef} className="flex-1 overflow-y-auto p-10 pr-[420px] pb-24">
         {!pdfDoc ? (
           <div className="h-full flex flex-col items-center justify-center">
             <h2 className="text-4xl font-black mb-6 text-white">Interactive Reader</h2>
@@ -251,7 +272,7 @@ export default function ReaderView({ settings, loadWords, words, onExit }) {
       )}
 
       {/* Definition Sidebar - Fixed position on the right */}
-      <div className="fixed right-0 top-0 w-[400px] h-full bg-slate-950 border-l-2 border-slate-800 flex flex-col">
+      <div className="fixed right-0 top-0 w-[400px] h-full bg-slate-950 border-l-2 border-slate-800 flex flex-col z-40">
         <div className="p-8 border-b-2 border-slate-800 flex justify-between items-center">
           <h3 className="text-2xl font-black capitalize text-white">
             {definitionPanel?.word || 'Word Definition'}
