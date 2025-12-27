@@ -7,7 +7,6 @@ import { fetchDefinition } from '../lib/apiService';
 import { isValidWord } from '../lib/utils';
 import { COMMON_WORDS } from '../lib/constants';
 
-// Page component to handle individual canvas rendering for the scrollable list
 function PDFPage({ pdfDoc, pageNum, scale, onWordClick, highlightedWords, onFirstNewWord }) {
   const canvasRef = useRef(null);
   const textLayerRef = useRef(null);
@@ -30,15 +29,9 @@ function PDFPage({ pdfDoc, pageNum, scale, onWordClick, highlightedWords, onFirs
         canvas.style.width = viewport.width + 'px';
         context.scale(dpr, dpr);
 
-        if (renderTask) {
-          renderTask.cancel();
-        }
+        if (renderTask) renderTask.cancel();
 
-        renderTask = page.render({
-          canvasContext: context,
-          viewport: viewport
-        });
-
+        renderTask = page.render({ canvasContext: context, viewport: viewport });
         await renderTask.promise;
 
         const textContent = await page.getTextContent();
@@ -72,8 +65,6 @@ function PDFPage({ pdfDoc, pageNum, scale, onWordClick, highlightedWords, onFirs
             const lower = token.toLowerCase().replace(/[^a-z]/g, '');
             const isWord = /^[a-zA-Z]{3,}$/.test(token);
             const isSaved = highlightedWords.includes(lower);
-            
-            // New word logic: valid word, not common, and not already saved
             const isNewWord = isWord && !isSaved && !COMMON_WORDS.has(lower) && isValidWord(lower);
             
             if (isWord) {
@@ -82,14 +73,12 @@ function PDFPage({ pdfDoc, pageNum, scale, onWordClick, highlightedWords, onFirs
               span.style.borderRadius = '2px';
               
               if (isSaved) {
-                // Existing yellow highlight for SAVED words
                 span.style.backgroundColor = 'rgba(251, 191, 36, 0.4)';
                 span.style.borderBottom = '3px solid rgba(245, 158, 11, 0.8)';
                 span.style.paddingBottom = '1px';
               } else if (isNewWord) {
-                // NEW: Golden highlight for potential new vocabulary
-                span.style.backgroundColor = 'rgba(212, 175, 55, 0.15)'; // Soft gold glow
-                span.style.borderBottom = '2px solid rgba(212, 175, 55, 0.6)'; // Defined golden underline
+                span.style.backgroundColor = 'rgba(212, 175, 55, 0.15)';
+                span.style.borderBottom = '2px solid rgba(212, 175, 55, 0.6)';
                 span.style.padding = '0 1px 1px 1px';
               }
               
@@ -99,39 +88,24 @@ function PDFPage({ pdfDoc, pageNum, scale, onWordClick, highlightedWords, onFirs
               }
               
               span.addEventListener('mouseenter', () => {
-                if (!isSaved) {
-                  // Interactive hover effect
-                  span.style.backgroundColor = 'rgba(212, 175, 55, 0.3)';
-                }
+                if (!isSaved) span.style.backgroundColor = 'rgba(212, 175, 55, 0.3)';
               });
               span.addEventListener('mouseleave', () => {
-                if (!isSaved) {
-                  span.style.backgroundColor = isNewWord ? 'rgba(212, 175, 55, 0.15)' : 'transparent';
-                }
+                if (!isSaved) span.style.backgroundColor = isNewWord ? 'rgba(212, 175, 55, 0.15)' : 'transparent';
               });
               span.addEventListener('click', () => onWordClick(token));
             }
-            
             div.appendChild(span);
           });
-          
           textLayer.appendChild(div);
         });
-
       } catch (error) {
-        if (error.name !== 'RenderingCancelledException') {
-          console.error('Error rendering page:', error);
-        }
+        if (error.name !== 'RenderingCancelledException') console.error('Error rendering page:', error);
       }
     };
 
     render();
-
-    return () => {
-      if (renderTask) {
-        renderTask.cancel();
-      }
-    };
+    return () => { if (renderTask) renderTask.cancel(); };
   }, [pdfDoc, pageNum, scale, highlightedWords, onWordClick, onFirstNewWord]);
 
   return (
@@ -145,13 +119,20 @@ function PDFPage({ pdfDoc, pageNum, scale, onWordClick, highlightedWords, onFirs
 export default function ReaderView({ settings, loadWords, words, onExit }) {
   const [pdfDoc, setPdfDoc] = useState(null);
   const [numPages, setNumPages] = useState(0);
-  const [scale, setScale] = useState(1.5);
+  const [scale, setScale] = useState(1.0); // Start with 1.0 for calculation
   const [definitionPanel, setDefinitionPanel] = useState(null);
   const [loading, setLoading] = useState(false);
   const [firstWordLoaded, setFirstWordLoaded] = useState(false);
   const containerRef = useRef(null);
-
   const fileInputRef = useRef(null);
+
+  const playAudio = (info) => {
+    const audioUrl = info.phonetics?.find(p => p.audio)?.audio || info.audioUrl;
+    if (audioUrl) {
+      const audio = new Audio(audioUrl);
+      audio.play().catch(() => {});
+    }
+  };
 
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
@@ -164,11 +145,12 @@ export default function ReaderView({ settings, loadWords, words, onExit }) {
       
       const page = await pdf.getPage(1);
       const viewport = page.getViewport({ scale: 1 });
-      const availableWidth = containerRef.current ? containerRef.current.clientWidth - 80 : window.innerWidth - 480; 
+      
+      // Strict width calculation: Total - right panel - left sidebar padding/margins
+      const availableWidth = window.innerWidth - 450 - 280; 
       const calculatedScale = availableWidth / viewport.width;
       
-      setScale(Math.min(calculatedScale, 2.0));
-      
+      setScale(Math.min(calculatedScale, 1.8));
       setPdfDoc(pdf);
       setNumPages(pdf.numPages);
     } catch (err) {
@@ -183,7 +165,14 @@ export default function ReaderView({ settings, loadWords, words, onExit }) {
     const cleanWord = word.replace(/[^a-zA-Z]/g, "").toLowerCase();
     setDefinitionPanel({ loading: true, word: cleanWord });
     const info = await fetchDefinition(cleanWord, settings);
+    
     setDefinitionPanel(info);
+    
+    // Feature restored: Pronounce on click
+    if (!info.error) {
+      playAudio(info);
+    }
+
     if (settings.autoSave && !info.error) {
       const exists = await db.vocabulary.where('word').equals(info.word).first();
       if (!exists) { await db.vocabulary.add(info); await loadWords(); }
@@ -197,25 +186,22 @@ export default function ReaderView({ settings, loadWords, words, onExit }) {
     }
   };
 
-  const playAudio = (info) => {
-    const audioUrl = info.phonetics?.find(p => p.audio)?.audio || info.audioUrl;
-    if (audioUrl) new Audio(audioUrl).play().catch(() => {});
-  };
-
   const adjustScale = (delta) => {
-    setScale(prev => {
-      const newScale = prev + delta;
-      return Math.max(0.5, Math.min(2.5, newScale));
-    });
+    setScale(prev => Math.max(0.5, Math.min(2.5, prev + delta)));
   };
 
   return (
-    <div className="flex h-full w-full bg-[#0f172a] overflow-hidden">
+    <div className="flex h-full w-full bg-[#0f172a] overflow-hidden relative">
       
-      <div ref={containerRef} className="flex-1 overflow-y-auto p-10 pr-[420px] pb-24">
+      {/* Container fix: Ensure it cannot expand behind the definition sidebar */}
+      <div 
+        ref={containerRef} 
+        className="h-full overflow-auto p-10 pb-24 transition-all duration-300"
+        style={{ marginRight: '400px', width: 'calc(100% - 400px)' }}
+      >
         {!pdfDoc ? (
           <div className="h-full flex flex-col items-center justify-center">
-            <h2 className="text-4xl font-black mb-6 text-white">Interactive Reader</h2>
+            <h2 className="text-4xl font-black mb-6 text-white text-center">Interactive Reader</h2>
             <button 
               onClick={() => fileInputRef.current.click()} 
               className="bg-indigo-600 hover:bg-indigo-500 px-8 py-4 rounded-2xl font-bold flex items-center gap-2 transition-all text-white"
@@ -241,8 +227,9 @@ export default function ReaderView({ settings, loadWords, words, onExit }) {
         )}
       </div>
 
+      {/* Floating Controls - adjusted margin to center relative to PDF area */}
       {pdfDoc && (
-        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-slate-900/95 backdrop-blur-xl p-3 px-6 rounded-full border-2 border-slate-700 z-50 shadow-2xl" style={{ marginLeft: '-200px' }}>
+        <div className="fixed bottom-10 left-[calc(50%-200px)] -translate-x-1/2 flex items-center gap-4 bg-slate-900/95 backdrop-blur-xl p-3 px-6 rounded-full border-2 border-slate-700 z-50 shadow-2xl">
            <button onClick={() => adjustScale(-0.2)} className="hover:bg-slate-800 p-2 rounded-full transition-colors text-white">
              <ZoomOut size={20}/>
            </button>
@@ -257,9 +244,10 @@ export default function ReaderView({ settings, loadWords, words, onExit }) {
         </div>
       )}
 
+      {/* Definition Sidebar - Fixed position on the right */}
       <div className="fixed right-0 top-0 w-[400px] h-full bg-slate-950 border-l-2 border-slate-800 flex flex-col z-40">
         <div className="p-8 border-b-2 border-slate-800 flex justify-between items-center">
-          <h3 className="text-2xl font-black capitalize text-white">
+          <h3 className="text-2xl font-black capitalize text-white truncate pr-4">
             {definitionPanel?.word || 'Word Definition'}
           </h3>
           {definitionPanel && (
@@ -306,7 +294,7 @@ export default function ReaderView({ settings, loadWords, words, onExit }) {
           <div className="flex-1 flex items-center justify-center p-8">
             <div className="text-center text-slate-500">
               <p className="text-lg font-medium">Click on any word in the PDF</p>
-              <p className="text-sm mt-2">to see its definition here</p>
+              <p className="text-sm mt-2">to see its definition and hear it</p>
             </div>
           </div>
         )}
