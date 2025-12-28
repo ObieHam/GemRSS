@@ -18,3 +18,44 @@ h2 {
 button {
   cursor: pointer;
 }
+
+/* --- PDF ENGINE TEXT LAYER STYLES --- */
+
+.textLayer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  color: transparent; /* Text is invisible but clickable */
+  transform-origin: 0 0;
+  line-height: 1;
+}
+
+.textLayer > span, .textLayer > div {
+  color: transparent;
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0% 0%;
+}
+
+/* Custom word highlighting styles */
+.pdf-word-wrapper {
+  transition: background-color 0.2s ease;
+  border-radius: 2px;
+}
+
+.pdf-word-wrapper:hover {
+  background-color: rgba(99, 102, 241, 0.2) !important;
+}
+
+.word-highlight-saved {
+  background-color: rgba(251, 191, 36, 0.4) !important;
+  border-bottom: 2px solid rgba(245, 158, 11, 0.8) !important;
+}
+
+.word-highlight-new {
+  background-color: rgba(212, 175, 55, 0.15) !important;
+  border-bottom: 1px solid rgba(212, 175, 55, 0.5) !important;
+}
