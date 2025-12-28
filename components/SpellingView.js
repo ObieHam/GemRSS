@@ -37,7 +37,7 @@ export default function SpellingView({ words, settings, onSuccessFlash }) {
     setPracticeType(type);
     const wordList = type === 'ielts' ? IELTS_WORDS : words;
     const due = await spellingDb.getDueCards(wordList, type);
-    if (due.length === 0) return alert(`All caught up on ${type} words!`);
+    if (due.length === 0) return alert(`All caught up on ${type === 'ielts' ? 'IELTS' : 'Library'} words!`);
     
     setSession({ currentIndex: 0, list: due, correct: 0, incorrect: 0 });
     setMode('session');
@@ -192,10 +192,10 @@ export default function SpellingView({ words, settings, onSuccessFlash }) {
             <span className="text-[9px] font-black">STREAK: {streak}</span>
           </div>
         </div>
-        <span className="text-slate-500">Word {session.currentIndex + 1} / {session.list.length}</span>
+        <span className="text-slate-500">WORD {session.currentIndex + 1} / {session.list.length}</span>
         <div className="flex gap-4">
-          <span className="text-emerald-400">Correct: {session.correct}</span>
-          <span className="text-red-400">Incorrect: {session.incorrect}</span>
+          <span className="text-emerald-400">CORRECT: {session.correct}</span>
+          <span className="text-red-400">INCORRECT: {session.incorrect}</span>
         </div>
       </div>
 
@@ -210,45 +210,51 @@ export default function SpellingView({ words, settings, onSuccessFlash }) {
               </button>
             </div>
 
-            <input
-                ref={inputRef}
-                type="text"
-                autoFocus
-                value={userInput}
-                onChange={(e) => setUserInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && (feedback === 'incorrect' ? nextWord() : checkAnswer())}
-                placeholder="Type the word..."
-                disabled={feedback === 'correct'}
-                className="w-full bg-slate-950 border border-slate-800 p-8 rounded-3xl text-4xl text-center font-black text-white outline-none focus:border-indigo-500 mb-8"
-            />
+            <div className="relative group max-w-2xl mx-auto w-full">
+              <input
+                  ref={inputRef}
+                  type="text"
+                  autoFocus
+                  value={userInput}
+                  onChange={(e) => setUserInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && (feedback === 'incorrect' ? nextWord() : checkAnswer())}
+                  placeholder="Type the word..."
+                  disabled={feedback === 'correct'}
+                  className="w-full bg-slate-950 border-2 border-slate-800 p-8 rounded-3xl text-4xl text-center font-black text-white outline-none focus:border-indigo-500 transition-all shadow-inner"
+              />
+            </div>
 
-            {!feedback ? (
-               <div className="grid grid-cols-2 gap-4">
-                  <button onClick={nextWord} className="bg-slate-800 py-5 rounded-2xl font-black text-white flex items-center justify-center gap-2 hover:bg-slate-700 transition-colors">
-                    <SkipForward size={20} /> Skip
-                  </button>
-                  <button onClick={checkAnswer} className="bg-indigo-600 py-5 rounded-2xl font-black text-white hover:bg-indigo-500 shadow-lg">
-                    Check Answer
-                  </button>
-               </div>
-            ) : (
-                <button onClick={nextWord} className="w-full py-6 bg-indigo-600 hover:bg-indigo-500 rounded-2xl font-black text-white text-xl flex items-center justify-center gap-2">
-                    Continue Session <ChevronRight size={24} />
+            <div className="mt-10">
+              {!feedback ? (
+                <div className="grid grid-cols-2 gap-4 max-w-md mx-auto w-full">
+                   <button onClick={nextWord} className="bg-slate-800 py-5 rounded-2xl font-black text-white hover:bg-slate-700 transition-colors">
+                     Skip
+                   </button>
+                   <button onClick={checkAnswer} className="bg-blue-600 py-5 rounded-2xl font-black text-white hover:bg-blue-500 shadow-lg shadow-blue-600/20">
+                     Check
+                   </button>
+                </div>
+              ) : (
+                <button onClick={nextWord} className="mt-10 w-full max-w-md mx-auto py-6 bg-indigo-600 hover:bg-indigo-500 rounded-2xl font-black text-white text-xl flex items-center justify-center gap-2">
+                    Continue <ChevronRight size={24} />
                 </button>
-            )}
+              )}
+            </div>
         </div>
 
         <div className="w-full lg:w-[450px] flex flex-col gap-4 self-stretch">
-            <div className="bg-slate-900/50 border border-slate-700/30 rounded-3xl p-8 h-full shadow-inner flex flex-col justify-center">
+            <div className="bg-[#1e293b]/50 border-2 border-slate-800 rounded-3xl p-8 h-full shadow-inner flex flex-col justify-center">
                 {feedback === 'incorrect' ? (
-                  <div className="animate-in fade-in slide-in-from-right-4 h-full">
-                      <p className="text-red-400 text-xs font-black uppercase mb-4 tracking-widest text-center">Correction</p>
-                      <div className="mb-8">{renderComparisonVertical()}</div>
-                      <div className="pt-6 border-t border-slate-800">
-                        <p className="text-slate-500 text-[10px] font-black uppercase mb-1">Target Spelling</p>
-                        <p className="text-3xl font-black text-white capitalize mb-4">{currentWord}</p>
+                  <div className="animate-in fade-in slide-in-from-right-4 h-full flex flex-col">
+                      <p className="text-red-400 text-[10px] font-black uppercase mb-6 tracking-widest text-center">Letter Comparison</p>
+                      <div className="mb-10 bg-slate-950/40 p-6 rounded-2xl border border-white/5">
+                        {renderComparisonVertical()}
+                      </div>
+                      <div className="pt-8 border-t border-slate-800 mt-auto">
+                        <p className="text-slate-500 text-[10px] font-black uppercase mb-1 tracking-wider">Correct Spelling</p>
+                        <p className="text-4xl font-black text-white capitalize mb-4 tracking-tight">{currentWord}</p>
                         {currentExample ? (
-                          <p className="text-slate-300 text-sm italic leading-relaxed">"{currentExample}"</p>
+                          <p className="text-slate-300 text-lg italic leading-relaxed">"{currentExample}"</p>
                         ) : (
                           <button onClick={() => { setIsEditingExample(true); setNewExample(""); }} className="flex items-center gap-2 text-indigo-400 text-sm font-bold hover:text-indigo-300 transition-colors">
                             <PlusCircle size={16} /> Add Context Sentence
@@ -258,37 +264,22 @@ export default function SpellingView({ words, settings, onSuccessFlash }) {
                   </div>
                 ) : feedback === 'correct' ? (
                   <div className="text-center py-12 flex flex-col items-center justify-center h-full animate-in zoom-in-95">
-                      <div className="bg-emerald-500/20 w-24 h-24 rounded-full flex items-center justify-center mb-6">
+                      <div className="bg-emerald-500/20 w-24 h-24 rounded-full flex items-center justify-center mb-6 ring-8 ring-emerald-500/5">
                         <CheckCircle size={48} className="text-emerald-500" />
                       </div>
                       <p className="text-white text-3xl font-black mb-2 text-center">Well Done!</p>
-                      {streak > 1 && <p className="text-emerald-400 text-lg font-black animate-bounce">{streak}x STREAK!</p>}
+                      {streak > 1 && (
+                        <div className="mt-4 px-6 py-2 bg-indigo-500/10 rounded-full border border-indigo-500/20">
+                          <p className="text-indigo-400 text-lg font-black animate-bounce">{streak}x STREAK!</p>
+                        </div>
+                      )}
                   </div>
                 ) : (
-                  <div className="flex flex-col h-full">
-                    <p className="text-slate-500 text-[10px] font-black uppercase tracking-[0.2em] mb-6">Word Proficiency Info</p>
-                    <div className="space-y-6 flex-1">
-                        <div className="flex justify-between items-center bg-slate-900/50 p-4 rounded-2xl border border-slate-800">
-                            <span className="text-slate-400 font-bold">FSRS Stability</span>
-                            <span className="text-white font-black">{Math.round(currentItem.card.stability || 0)} days</span>
-                        </div>
-                        <div className="flex justify-between items-center bg-slate-900/50 p-4 rounded-2xl border border-slate-800">
-                            <span className="text-slate-400 font-bold">Repetitions</span>
-                            <span className="text-white font-black">{currentItem.card.repetitions || 0}</span>
-                        </div>
-                        <div className="flex justify-between items-center bg-slate-900/50 p-4 rounded-2xl border border-slate-800">
-                            <span className="text-slate-400 font-bold">Next Review</span>
-                            <span className="text-white font-black">{currentItem.card.nextReview ? new Date(currentItem.card.nextReview).toLocaleDateString() : 'Now'}</span>
-                        </div>
-                    </div>
-                    
-                    {practiceType === 'general' && (
-                        <div className="mt-auto pt-10">
-                             <button onClick={() => { setIsEditingExample(true); setNewExample(currentExample || ""); }} className="w-full py-4 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-2xl font-black text-xs uppercase tracking-widest border border-slate-700 flex items-center justify-center gap-2 transition-colors">
-                                <Edit3 size={14} /> {currentExample ? 'Edit Context' : 'Add Context'}
-                             </button>
-                        </div>
-                    )}
+                  <div className="flex flex-col h-full items-center justify-center text-center opacity-40">
+                    <TrendingUp size={64} className="text-slate-600 mb-6" />
+                    <p className="text-slate-500 font-bold uppercase tracking-widest text-xs leading-relaxed">
+                      Proficiency data will<br/>appear here
+                    </p>
                   </div>
                 )}
             </div>
