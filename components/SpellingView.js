@@ -149,33 +149,55 @@ export default function SpellingView({ words, settings, onSuccessFlash }) {
 
   if (mode === 'menu') {
     return (
-      <div className="p-8 max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500">
-        <header className="flex items-center gap-4">
+      <div className="p-8 max-w-6xl mx-auto space-y-12 animate-in fade-in duration-500">
+        <header className="flex items-center gap-4 mb-4">
           <div className="bg-indigo-600 p-3 rounded-3xl shadow-lg shadow-indigo-500/20"><Volume2 size={32} className="text-white" /></div>
           <h2 className="text-4xl font-black text-white">Spelling Trainer</h2>
         </header>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-[#1e293b] border border-slate-700/50 p-8 rounded-3xl shadow-xl flex flex-col items-center text-center">
-            <TrendingUp className="text-indigo-400 mb-4" size={40} />
-            <h3 className="text-2xl font-bold text-white mb-2">My Library</h3>
-            <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-6 flex flex-col gap-1">
-              <span>Due: <span className="text-indigo-400">{stats.general?.dueToday || 0}</span></span>
-              <span>New: <span className="text-emerald-400">{stats.general?.newWords || 0}</span></span>
-              <span>Learning: <span className="text-orange-400">{stats.general?.learning || 0}</span></span>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+          {/* My Library Mode - 2 Column Layout */}
+          <div className="space-y-6">
+            <div className="bg-[#1e293b] border border-slate-700/50 p-8 rounded-3xl shadow-xl flex flex-col items-center text-center">
+              <TrendingUp className="text-indigo-400 mb-4" size={40} />
+              <h3 className="text-2xl font-bold text-white mb-6">My Library</h3>
+              <button onClick={() => startSession('general')} className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 rounded-2xl font-black text-white transition-all shadow-lg">Start Practice</button>
             </div>
-            <button onClick={() => startSession('general')} className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 rounded-2xl font-black text-white transition-all shadow-lg">Start Practice</button>
+            {/* Stat Row */}
+            <div className="grid grid-cols-3 gap-4">
+               {[
+                 { label: 'Due', val: stats.general?.dueToday || 0, color: 'text-indigo-400' },
+                 { label: 'New', val: stats.general?.newWords || 0, color: 'text-emerald-400' },
+                 { label: 'Learning', val: stats.general?.learning || 0, color: 'text-orange-400' }
+               ].map(s => (
+                 <div key={s.label} className="bg-[#1e293b] border border-slate-700/50 p-4 rounded-3xl text-center">
+                    <p className="text-[10px] font-black uppercase text-slate-500 mb-1">{s.label}</p>
+                    <p className={`text-2xl font-black ${s.color}`}>{s.val}</p>
+                 </div>
+               ))}
+            </div>
           </div>
 
-          <div className="bg-[#1e293b] border border-slate-700/50 p-8 rounded-3xl shadow-xl flex flex-col items-center text-center">
-            <GraduationCap className="text-emerald-400 mb-4" size={40} />
-            <h3 className="text-2xl font-bold text-white mb-2">IELTS Masterlist</h3>
-            <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-6 flex flex-col gap-1">
-              <span>Due: <span className="text-indigo-400">{stats.ielts?.dueToday || 0}</span></span>
-              <span>New: <span className="text-emerald-400">{stats.ielts?.newWords || 0}</span></span>
-              <span>Learning: <span className="text-orange-400">{stats.ielts?.learning || 0}</span></span>
+          {/* IELTS Masterlist Mode - 2 Column Layout */}
+          <div className="space-y-6">
+            <div className="bg-[#1e293b] border border-slate-700/50 p-8 rounded-3xl shadow-xl flex flex-col items-center text-center">
+              <GraduationCap className="text-emerald-400 mb-4" size={40} />
+              <h3 className="text-2xl font-bold text-white mb-6">IELTS Masterlist</h3>
+              <button onClick={() => startSession('ielts')} className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 rounded-2xl font-black text-white transition-all shadow-lg">Master IELTS</button>
             </div>
-            <button onClick={() => startSession('ielts')} className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 rounded-2xl font-black text-white transition-all shadow-lg">Master IELTS</button>
+            {/* Stat Row */}
+            <div className="grid grid-cols-3 gap-4">
+               {[
+                 { label: 'Due', val: stats.ielts?.dueToday || 0, color: 'text-indigo-400' },
+                 { label: 'New', val: stats.ielts?.newWords || 0, color: 'text-emerald-400' },
+                 { label: 'Learning', val: stats.ielts?.learning || 0, color: 'text-orange-400' }
+               ].map(s => (
+                 <div key={s.label} className="bg-[#1e293b] border border-slate-700/50 p-4 rounded-3xl text-center">
+                    <p className="text-[10px] font-black uppercase text-slate-500 mb-1">{s.label}</p>
+                    <p className={`text-2xl font-black ${s.color}`}>{s.val}</p>
+                 </div>
+               ))}
+            </div>
           </div>
         </div>
       </div>
