@@ -8,7 +8,7 @@
 }
 
 body {
-  font-size: 0.875rem; /* Base size reduced */
+  font-size: 0.875rem;
 }
 
 h2 {
@@ -19,7 +19,7 @@ button {
   cursor: pointer;
 }
 
-/* --- PDF ENGINE TEXT LAYER STYLES --- */
+/* --- CRITICAL PDF.JS TEXT LAYER STYLES --- */
 
 .textLayer {
   position: absolute;
@@ -27,12 +27,14 @@ button {
   top: 0;
   right: 0;
   bottom: 0;
-  color: transparent; /* Text is invisible but clickable */
+  color: transparent; /* Makes text invisible but allows selection/clicks */
   transform-origin: 0 0;
   line-height: 1;
 }
 
-.textLayer > span, .textLayer > div {
+/* Individual text fragments placed by PDF.js */
+.textLayer > span, 
+.textLayer > div {
   color: transparent;
   position: absolute;
   white-space: pre;
@@ -40,22 +42,28 @@ button {
   transform-origin: 0% 0%;
 }
 
-/* Custom word highlighting styles */
-.pdf-word-wrapper {
-  transition: background-color 0.2s ease;
+/* Clickable word styling within fragments */
+.pdf-clickable-word {
+  cursor: pointer !important;
+  transition: all 0.1s ease;
   border-radius: 2px;
 }
 
-.pdf-word-wrapper:hover {
-  background-color: rgba(99, 102, 241, 0.2) !important;
+.pdf-clickable-word:hover {
+  background-color: rgba(99, 102, 241, 0.25) !important;
 }
 
-.word-highlight-saved {
-  background-color: rgba(251, 191, 36, 0.4) !important;
+.highlight-saved {
+  background-color: rgba(251, 191, 36, 0.35) !important;
   border-bottom: 2px solid rgba(245, 158, 11, 0.8) !important;
 }
 
-.word-highlight-new {
-  background-color: rgba(212, 175, 55, 0.15) !important;
-  border-bottom: 1px solid rgba(212, 175, 55, 0.5) !important;
+.highlight-new {
+  background-color: rgba(212, 175, 55, 0.12) !important;
+  border-bottom: 1.5px solid rgba(212, 175, 55, 0.4) !important;
+}
+
+/* Fix for standard PDF selection appearance */
+.textLayer ::selection {
+  background: rgba(0, 0, 255, 0.2);
 }
