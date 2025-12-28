@@ -227,4 +227,15 @@ export default function ShadowingView({ settings, onSuccessFlash }) {
                     {feedback === 'correct' ? <CheckCircle size={64} className="text-emerald-500 mx-auto" /> : <XCircle size={64} className="text-red-500 mx-auto" />}
                     <h3 className="text-4xl font-black text-white">{feedback === 'correct' ? 'Well Done!' : 'Try Again'}</h3>
                     <div className="flex gap-4 max-w-md mx-auto">
-                      <button onClick={() => { setFeedback(null
+                      <button onClick={() => { setFeedback(null); widgetInstance.current?.replay(); setIsInputMode(false); }} className="flex-1 py-4 bg-slate-800 text-white rounded-2xl font-bold">Retry</button>
+                      <button onClick={nextTrack} className="flex-1 py-4 bg-indigo-600 text-white rounded-2xl font-bold flex items-center justify-center gap-2">Next <ChevronRight size={18}/></button>
+                    </div>
+                  </div>
+                )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
