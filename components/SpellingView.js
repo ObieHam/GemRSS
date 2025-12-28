@@ -156,45 +156,43 @@ export default function SpellingView({ words, settings, onSuccessFlash }) {
         </header>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-          {/* My Library Mode - 2 Column Layout */}
+          {/* My Library Mode */}
           <div className="space-y-6">
             <div className="bg-[#1e293b] border border-slate-700/50 p-8 rounded-3xl shadow-xl flex flex-col items-center text-center">
               <TrendingUp className="text-indigo-400 mb-4" size={40} />
               <h3 className="text-2xl font-bold text-white mb-6">My Library</h3>
-              <button onClick={() => startSession('general')} className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 rounded-2xl font-black text-white transition-all shadow-lg">Start Practice</button>
+              <button onClick={() => startSession('general')} className="w-full py-6 bg-indigo-600 hover:bg-indigo-500 rounded-2xl font-black text-xl text-white transition-all shadow-lg">Start Practice</button>
             </div>
-            {/* Stat Row */}
             <div className="grid grid-cols-3 gap-4">
                {[
                  { label: 'Due', val: stats.general?.dueToday || 0, color: 'text-indigo-400' },
                  { label: 'New', val: stats.general?.newWords || 0, color: 'text-emerald-400' },
                  { label: 'Learning', val: stats.general?.learning || 0, color: 'text-orange-400' }
                ].map(s => (
-                 <div key={s.label} className="bg-[#1e293b] border border-slate-700/50 p-4 rounded-3xl text-center">
+                 <div key={s.label} className="bg-[#1e293b] border border-slate-700/50 p-6 rounded-3xl text-center">
                     <p className="text-[10px] font-black uppercase text-slate-500 mb-1">{s.label}</p>
-                    <p className={`text-2xl font-black ${s.color}`}>{s.val}</p>
+                    <p className={`text-3xl font-black ${s.color}`}>{s.val}</p>
                  </div>
                ))}
             </div>
           </div>
 
-          {/* IELTS Masterlist Mode - 2 Column Layout */}
+          {/* IELTS Masterlist Mode */}
           <div className="space-y-6">
             <div className="bg-[#1e293b] border border-slate-700/50 p-8 rounded-3xl shadow-xl flex flex-col items-center text-center">
               <GraduationCap className="text-emerald-400 mb-4" size={40} />
               <h3 className="text-2xl font-bold text-white mb-6">IELTS Masterlist</h3>
-              <button onClick={() => startSession('ielts')} className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 rounded-2xl font-black text-white transition-all shadow-lg">Master IELTS</button>
+              <button onClick={() => startSession('ielts')} className="w-full py-6 bg-emerald-600 hover:bg-emerald-500 rounded-2xl font-black text-xl text-white transition-all shadow-lg">Master IELTS</button>
             </div>
-            {/* Stat Row */}
             <div className="grid grid-cols-3 gap-4">
                {[
                  { label: 'Due', val: stats.ielts?.dueToday || 0, color: 'text-indigo-400' },
                  { label: 'New', val: stats.ielts?.newWords || 0, color: 'text-emerald-400' },
                  { label: 'Learning', val: stats.ielts?.learning || 0, color: 'text-orange-400' }
                ].map(s => (
-                 <div key={s.label} className="bg-[#1e293b] border border-slate-700/50 p-4 rounded-3xl text-center">
+                 <div key={s.label} className="bg-[#1e293b] border border-slate-700/50 p-6 rounded-3xl text-center">
                     <p className="text-[10px] font-black uppercase text-slate-500 mb-1">{s.label}</p>
-                    <p className={`text-2xl font-black ${s.color}`}>{s.val}</p>
+                    <p className={`text-3xl font-black ${s.color}`}>{s.val}</p>
                  </div>
                ))}
             </div>
@@ -221,7 +219,7 @@ export default function SpellingView({ words, settings, onSuccessFlash }) {
         </div>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-8 items-start min-h-[550px]">
+      <div className="flex flex-col lg:flex-row gap-8 items-stretch min-h-[550px]">
         <div className="flex-1 bg-[#1e293b] border border-slate-700/50 rounded-3xl p-12 text-center shadow-2xl flex flex-col justify-center min-h-[450px]">
             <div className="flex justify-center gap-4 mb-10">
               <button onClick={() => playText(currentWord)} className="p-6 bg-slate-800 hover:bg-indigo-600 rounded-2xl transition-all group shadow-lg">
@@ -249,10 +247,10 @@ export default function SpellingView({ words, settings, onSuccessFlash }) {
             <div className="mt-10">
               {!feedback ? (
                 <div className="grid grid-cols-2 gap-4 max-w-md mx-auto w-full">
-                   <button onClick={nextWord} className="bg-slate-800 py-5 rounded-2xl font-black text-white hover:bg-slate-700 transition-colors">
+                   <button onClick={nextWord} className="bg-slate-800 py-6 rounded-2xl font-black text-xl text-white hover:bg-slate-700 transition-colors">
                      Skip
                    </button>
-                   <button onClick={checkAnswer} className="bg-blue-600 py-5 rounded-2xl font-black text-white hover:bg-blue-500 shadow-lg shadow-blue-600/20">
+                   <button onClick={checkAnswer} className="bg-blue-600 py-6 rounded-2xl font-black text-xl text-white hover:bg-blue-500 shadow-lg shadow-blue-600/20">
                      Check
                    </button>
                 </div>
@@ -275,13 +273,7 @@ export default function SpellingView({ words, settings, onSuccessFlash }) {
                       <div className="pt-8 border-t border-slate-800 mt-auto">
                         <p className="text-slate-500 text-[10px] font-black uppercase mb-1 tracking-wider">Correct Spelling</p>
                         <p className="text-4xl font-black text-white capitalize mb-4 tracking-tight">{currentWord}</p>
-                        {currentExample ? (
-                          <p className="text-slate-300 text-lg italic leading-relaxed">"{currentExample}"</p>
-                        ) : (
-                          <button onClick={() => { setIsEditingExample(true); setNewExample(""); }} className="flex items-center gap-2 text-indigo-400 text-sm font-bold hover:text-indigo-300 transition-colors">
-                            <PlusCircle size={16} /> Add Context Sentence
-                          </button>
-                        )}
+                        <p className="text-slate-300 text-lg italic leading-relaxed">"{currentExample}"</p>
                       </div>
                   </div>
                 ) : feedback === 'correct' ? (
@@ -297,11 +289,29 @@ export default function SpellingView({ words, settings, onSuccessFlash }) {
                       )}
                   </div>
                 ) : (
-                  <div className="flex flex-col h-full items-center justify-center text-center opacity-40">
-                    <TrendingUp size={64} className="text-slate-600 mb-6" />
-                    <p className="text-slate-500 font-bold uppercase tracking-widest text-xs leading-relaxed">
-                      Proficiency data will<br/>appear here
-                    </p>
+                  <div className="flex flex-col h-full">
+                    <p className="text-slate-500 text-[10px] font-black uppercase tracking-[0.2em] mb-6">Word Proficiency Info</p>
+                    <div className="space-y-6 flex-1">
+                        <div className="flex justify-between items-center bg-slate-900/50 p-4 rounded-2xl border border-slate-800">
+                            <span className="text-slate-400 font-bold">FSRS Stability</span>
+                            <span className="text-white font-black">{Math.round(currentItem.card.stability || 0)} days</span>
+                        </div>
+                        <div className="flex justify-between items-center bg-slate-900/50 p-4 rounded-2xl border border-slate-800">
+                            <span className="text-slate-400 font-bold">Repetitions</span>
+                            <span className="text-white font-black">{currentItem.card.repetitions || 0}</span>
+                        </div>
+                        <div className="flex justify-between items-center bg-slate-900/50 p-4 rounded-2xl border border-slate-800">
+                            <span className="text-slate-400 font-bold">Next Review</span>
+                            <span className="text-white font-black">{currentItem.card.lastReview ? new Date(currentItem.card.nextReview).toLocaleDateString() : 'Now'}</span>
+                        </div>
+                    </div>
+                    {practiceType === 'general' && (
+                        <div className="mt-auto pt-10">
+                             <button onClick={() => { setIsEditingExample(true); setNewExample(currentExample || ""); }} className="w-full py-4 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-2xl font-black text-xs uppercase tracking-widest border border-slate-700 flex items-center justify-center gap-2 transition-colors">
+                                <Edit3 size={14} /> {currentExample ? 'Edit Context' : 'Add Context'}
+                             </button>
+                        </div>
+                    )}
                   </div>
                 )}
             </div>
