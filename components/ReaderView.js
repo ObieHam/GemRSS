@@ -1,12 +1,13 @@
 // components/ReaderView.js
 import { useState, useEffect, useRef } from 'react';
-import { Upload, Loader2, X, Volume2, Plus, ZoomIn, ZoomOut, LogOut } from 'lucide-react';
+import { Upload, Loader2, X, Volume2, Plus, ZoomIn, ZoomOut, LogOut, FileText } from 'lucide-react';
 import * as pdfjsLib from 'pdfjs-dist';
 import { db } from '../lib/storage';
 import { fetchDefinition } from '../lib/apiService';
 import { isValidWord } from '../lib/utils';
 import { COMMON_WORDS } from '../lib/constants';
 
+// ... (PDFPage component remains unchanged)
 function PDFPage({ pdfDoc, pageNum, scale, onWordClick, highlightedWords, settings }) {
   const canvasRef = useRef(null);
   const textLayerRef = useRef(null);
@@ -111,6 +112,7 @@ export default function ReaderView({ settings, loadWords, words, onExit }) {
   const containerRef = useRef(null);
   const fileInputRef = useRef(null);
 
+  // ... (hasAudio, playAudio, handleFileUpload, handleWordClick, adjustScale functions remain unchanged)
   const hasAudio = (info) => !!(info?.phonetics?.some(p => p.audio) || info?.audioUrl);
   const playAudio = (info) => {
     const audioUrl = info.phonetics?.find(p => p.audio)?.audio || info.audioUrl;
@@ -151,12 +153,21 @@ export default function ReaderView({ settings, loadWords, words, onExit }) {
     <div className="flex h-full w-full bg-[#0f172a] overflow-hidden relative">
       <div ref={containerRef} className="h-full overflow-auto p-10 pb-24" style={{ marginRight: '400px', width: 'calc(100% - 400px)' }}>
         {!pdfDoc ? (
-          <div className="h-full flex flex-col items-center justify-center">
-            <h2 className="text-4xl font-black mb-6 text-white text-center">Interactive Reader</h2>
-            <button onClick={() => fileInputRef.current.click()} className="bg-indigo-600 hover:bg-indigo-500 px-8 py-4 rounded-2xl font-bold flex items-center gap-2 text-white transition-all shadow-lg">
-              {loading ? <Loader2 className="animate-spin" /> : <Upload />} Open PDF
-            </button>
-            <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileUpload} accept=".pdf" />
+          <div className="p-12 max-w-4xl mx-auto flex flex-col items-center text-center animate-in fade-in duration-500 mt-20">
+            <h2 className="text-6xl font-black text-white tracking-tighter mb-6">Interactive Reader</h2>
+            <p className="text-slate-400 text-xl mb-12 max-w-xl">
+              Read documents with instant word definitions and pronunciation.
+            </p>
+            <div className="w-full bg-[#1e293b] border border-slate-700/50 rounded-3xl p-16 flex flex-col items-center justify-center shadow-2xl">
+              <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileUpload} accept=".pdf" />
+              <button 
+                onClick={() => fileInputRef.current.click()} 
+                className="inline-flex items-center gap-4 px-12 py-6 bg-emerald-600 hover:bg-emerald-500 rounded-2xl font-black text-2xl text-white transition-all shadow-xl shadow-emerald-500/20 active:scale-95"
+              >
+                {loading ? <Loader2 className="animate-spin" size={32} /> : <FileText size={32} />} 
+                Open PDF
+              </button>
+            </div>
           </div>
         ) : (
           <div className="flex flex-col items-center">
@@ -177,6 +188,7 @@ export default function ReaderView({ settings, loadWords, words, onExit }) {
       )}
 
       <div className="fixed right-0 top-0 w-[400px] h-full bg-slate-950 border-l-2 border-slate-800 flex flex-col z-40">
+        {/* ... (Definition panel remains unchanged) */}
         <div className="p-8 border-b-2 border-slate-800 flex justify-between items-center">
           <h3 className="text-2xl font-black capitalize text-white truncate pr-4">{definitionPanel?.word || 'Word Definition'}</h3>
           {definitionPanel && <button onClick={() => setDefinitionPanel(null)} className="p-2 text-slate-400 hover:bg-slate-800 rounded-lg transition-colors"><X size={20} /></button>}
