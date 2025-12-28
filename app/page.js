@@ -11,6 +11,7 @@ import BrowseView from '../components/BrowseView';
 import ReaderView from '../components/ReaderView';
 import FlashcardView from '../components/FlashcardView';
 import SpellingView from '../components/SpellingView';
+import ShadowingView from '../components/ShadowingView'; // New Import
 import FlashcardStatsView from '../components/FlashcardStatsView';
 import SpellingStatsView from '../components/SpellingStatsView';
 import SettingsPanel from '../components/SettingsPanel';
@@ -32,8 +33,6 @@ export default function LexiBuildApp() {
   const [words, setWords] = useState([]);
   const [settings, setSettings] = useState(getSettings());
   const [showSettings, setShowSettings] = useState(false);
-  
-  // State for sidebar flashing
   const [flashSidebar, setFlashSidebar] = useState(false);
 
   useEffect(() => {
@@ -58,7 +57,6 @@ export default function LexiBuildApp() {
     saveSettings(newSettings);
   };
 
-  // Trigger for sidebar flash
   const triggerSidebarFlash = () => {
     setFlashSidebar(true);
     setTimeout(() => setFlashSidebar(false), 600);
@@ -72,7 +70,7 @@ export default function LexiBuildApp() {
         sidebarOpen={sidebarOpen} 
         setSidebarOpen={setSidebarOpen}
         onSettingsClick={() => setShowSettings(true)}
-        isFlashing={flashSidebar} // Pass flash state
+        isFlashing={flashSidebar}
       />
 
       <main className={`flex-1 transition-all duration-300 ease-in-out ${sidebarOpen ? 'ml-64' : 'ml-16'} h-screen overflow-hidden`}>
@@ -101,7 +99,17 @@ export default function LexiBuildApp() {
               <SpellingView 
                 words={words} 
                 settings={settings} 
-                onSuccessFlash={triggerSidebarFlash} // Pass trigger to spelling view
+                onSuccessFlash={triggerSidebarFlash} 
+              />
+            </div>
+          )}
+
+          {/* New Shadowing View Logic */}
+          {view === 'shadowing' && (
+            <div className="p-8 h-full overflow-y-auto">
+              <ShadowingView 
+                settings={settings} 
+                onSuccessFlash={triggerSidebarFlash} 
               />
             </div>
           )}
