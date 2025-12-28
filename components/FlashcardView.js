@@ -65,12 +65,11 @@ export default function FlashcardView({ words, settings }) {
           <h2 className="text-4xl font-black text-white tracking-tight">Flashcards</h2>
         </header>
 
-        {/* items-stretch ensures top and bottom alignment */}
         <div className="flex flex-col lg:flex-row gap-8 items-stretch">
           <div className="flex-1 bg-[#1e293b] border border-slate-700/50 rounded-3xl p-12 text-center shadow-2xl flex flex-col justify-center min-h-[400px]">
             <h3 className="text-5xl font-black text-white mb-6 tracking-tighter">{stats.due + stats.new} Cards Due Now</h3>
             <p className="text-slate-400 text-lg mb-10 max-w-md mx-auto">Master your vocabulary through spaced repetition (FSRS).</p>
-            <button onClick={startSession} className="bg-indigo-600 hover:bg-indigo-500 px-12 py-5 rounded-2xl font-black text-xl text-white transition-all shadow-xl shadow-indigo-500/20 active:scale-95 flex items-center justify-center gap-3 w-fit mx-auto">
+            <button onClick={startSession} className="bg-indigo-600 hover:bg-indigo-500 px-12 py-6 rounded-2xl font-black text-xl text-white transition-all shadow-xl shadow-indigo-500/20 active:scale-95 flex items-center justify-center gap-3 w-fit mx-auto">
               <TrendingUp size={24} /> Start Session
             </button>
           </div>
@@ -131,7 +130,7 @@ export default function FlashcardView({ words, settings }) {
 
          <div className="w-full lg:w-72 flex flex-col gap-4">
             {[
-              { label: 'Session Done', value: `${session.currentIndex}/${session.list.length}`, color: 'text-emerald-400' },
+              { label: 'Session Progress', value: `${session.currentIndex + 1}/${session.list.length}`, color: 'text-emerald-400' },
               { label: 'Card Stability', value: `${Math.round(current.card.stability || 0)}d`, color: 'text-indigo-400' }
             ].map(s => (
               <div key={s.label} className="bg-[#1e293b] border border-slate-700/50 p-6 rounded-3xl shadow-lg flex-1 flex flex-col justify-center">
