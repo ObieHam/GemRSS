@@ -1,4 +1,4 @@
-import { LayoutDashboard, Upload, FileText, Brain, Volume2, List, BarChart3, Settings, ChevronLeft, ChevronRight } from 'lucide-react';
+import { LayoutDashboard, Upload, FileText, Brain, Volume2, List, BarChart3, Settings, ChevronLeft, ChevronRight, Activity } from 'lucide-react';
 
 export default function Sidebar({ view, setView, sidebarOpen, setSidebarOpen, onSettingsClick, isFlashing }) {
   const menuItems = [
@@ -8,6 +8,7 @@ export default function Sidebar({ view, setView, sidebarOpen, setSidebarOpen, on
     { id: 'flashcards', label: 'Flashcards', icon: Brain },
     { id: 'flashcard-stats', label: 'Flashcard Stats', icon: BarChart3 },
     { id: 'spelling', label: 'Spelling Practice', icon: Volume2 },
+    { id: 'shadowing', label: 'Shadowing', icon: Activity },
     { id: 'spelling-stats', label: 'Spelling Stats', icon: BarChart3 },
     { id: 'browse', label: 'Library', icon: List },
   ];
@@ -29,7 +30,7 @@ export default function Sidebar({ view, setView, sidebarOpen, setSidebarOpen, on
           </button>
         </div>
         
-        <nav className="space-y-1 flex-1">
+        <nav className="space-y-1 flex-1 overflow-y-auto custom-scrollbar">
           {menuItems.map((item) => (
             <button
               key={item.id}
@@ -42,14 +43,12 @@ export default function Sidebar({ view, setView, sidebarOpen, setSidebarOpen, on
                   : isFlashing ? 'text-emerald-400' : 'hover:bg-slate-700/30 text-slate-400'
               }`}
             >
-              {/* Fixed size to 20 to prevent the growing/shrinking bug during animation */}
               <item.icon size={20} className="flex-shrink-0" />
               {sidebarOpen && <span className="text-sm font-semibold truncate animate-in fade-in slide-in-from-left-2 duration-300">{item.label}</span>}
             </button>
           ))}
         </nav>
 
-        {/* Settings linked at the bottom */}
         <div className="pt-4 border-t border-slate-700/50">
           <button
             onClick={onSettingsClick}
