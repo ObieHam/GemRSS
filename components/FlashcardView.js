@@ -65,7 +65,8 @@ export default function FlashcardView({ words, settings }) {
           <h2 className="text-4xl font-black text-white tracking-tight">Flashcards</h2>
         </header>
 
-        <div className="flex flex-col lg:flex-row gap-8 items-end">
+        {/* items-stretch ensures top and bottom alignment */}
+        <div className="flex flex-col lg:flex-row gap-8 items-stretch">
           <div className="flex-1 bg-[#1e293b] border border-slate-700/50 rounded-3xl p-12 text-center shadow-2xl flex flex-col justify-center min-h-[400px]">
             <h3 className="text-5xl font-black text-white mb-6 tracking-tighter">{stats.due + stats.new} Cards Due Now</h3>
             <p className="text-slate-400 text-lg mb-10 max-w-md mx-auto">Master your vocabulary through spaced repetition (FSRS).</p>
@@ -74,13 +75,13 @@ export default function FlashcardView({ words, settings }) {
             </button>
           </div>
 
-          <div className="w-full lg:w-72 space-y-4">
+          <div className="w-full lg:w-72 flex flex-col gap-4">
             {[
               { label: 'Due Cards', value: stats.due, color: 'text-indigo-400' },
               { label: 'New Words', value: stats.new, color: 'text-emerald-400' },
               { label: 'Learning', value: stats.learning, color: 'text-orange-400' }
             ].map(s => (
-              <div key={s.label} className="bg-[#1e293b] border border-slate-700/50 p-6 rounded-3xl shadow-lg">
+              <div key={s.label} className="bg-[#1e293b] border border-slate-700/50 p-6 rounded-3xl shadow-lg flex-1 flex flex-col justify-center">
                 <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-1">{s.label}</p>
                 <p className={`text-4xl font-black ${s.color}`}>{s.value}</p>
               </div>
@@ -98,11 +99,13 @@ export default function FlashcardView({ words, settings }) {
        <div className="flex justify-between items-center text-[10px] font-black text-slate-500 uppercase tracking-widest bg-slate-900/50 p-4 rounded-2xl border border-slate-700/30">
           <span>Card {session.currentIndex + 1} of {session.list.length}</span>
           <div className="flex gap-4">
-             <span className="text-indigo-400">Next Review: {new Date(current.card.nextReview).toLocaleDateString()}</span>
+             <span className="text-indigo-400 font-bold uppercase tracking-tighter">
+                Next Review: {current.card.lastReview ? new Date(current.card.nextReview).toLocaleDateString() : 'New Card'}
+             </span>
           </div>
        </div>
 
-       <div className="flex flex-col lg:flex-row gap-8 items-end flex-1">
+       <div className="flex flex-col lg:flex-row gap-8 items-stretch flex-1">
          <div 
            onClick={() => !session.showBack && setSession(s => ({ ...s, showBack: true }))}
            className={`flex-1 w-full bg-[#1e293b] border-2 border-slate-700/50 rounded-3xl p-12 flex flex-col items-center justify-center text-center shadow-2xl transition-all duration-500 cursor-pointer min-h-[450px] ${!session.showBack ? 'hover:border-indigo-500/50' : ''}`}
@@ -126,12 +129,12 @@ export default function FlashcardView({ words, settings }) {
             )}
          </div>
 
-         <div className="w-full lg:w-72 space-y-4">
+         <div className="w-full lg:w-72 flex flex-col gap-4">
             {[
-              { label: 'Session Progress', value: `${session.currentIndex + 1}/${session.list.length}`, color: 'text-emerald-400' },
+              { label: 'Session Done', value: `${session.currentIndex}/${session.list.length}`, color: 'text-emerald-400' },
               { label: 'Card Stability', value: `${Math.round(current.card.stability || 0)}d`, color: 'text-indigo-400' }
             ].map(s => (
-              <div key={s.label} className="bg-[#1e293b] border border-slate-700/50 p-6 rounded-3xl shadow-lg">
+              <div key={s.label} className="bg-[#1e293b] border border-slate-700/50 p-6 rounded-3xl shadow-lg flex-1 flex flex-col justify-center">
                 <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-1">{s.label}</p>
                 <p className={`text-4xl font-black ${s.color}`}>{s.value}</p>
               </div>
