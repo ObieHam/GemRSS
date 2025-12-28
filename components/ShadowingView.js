@@ -1,12 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
-import { Volume2, Play, Pause, RotateCcw, ChevronRight, Search, Layout, CheckCircle, XCircle, Loader2, Dice5 } from 'lucide-react';
+import { Volume2, Play, Pause, RotateCcw, ChevronRight, Search, Layout, CheckCircle, XCircle, Loader2, Dice5, AlertCircle } from 'lucide-react';
 
-// Common words/phrases that yield good natural English results
 const RANDOM_TOPICS = [
-  "daily routine", "travel stories", "cooking recipes", "tech news", 
-  "science facts", "history moments", "motivation", "standard english", 
-  "interview tips", "movie reviews", "book summary", "courage", "friendship"
+  "courage", "happiness", "technology", "nature", "science", 
+  "travel", "cooking", "history", "space", "leadership", 
+  "innovation", "education", "environment", "art"
 ];
+
+// Valid accents for YouGlish English
+const VALID_ACCENTS = ["us", "uk", "aus", "ca", "ie", "sco", "nz"];
 
 export default function ShadowingView({ settings, onSuccessFlash }) {
   const [widget, setWidget] = useState(null);
@@ -18,21 +20,26 @@ export default function ShadowingView({ settings, onSuccessFlash }) {
   const [isInputMode, setIsInputMode] = useState(false);
   const [speed, setSpeed] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   const successAudio = useRef(null);
   const failureAudio = useRef(null);
   const inputRef = useRef(null);
+  const widgetInstance = useRef(null);
 
   useEffect(() => {
     successAudio.current = new Audio('/success.mp3');
     failureAudio.current = new Audio('/failure.mp3');
 
+    // Load API script
     const script = document.createElement('script');
     script.src = "https://youglish.com/public/emb/widget.js";
     script.async = true;
     document.body.appendChild(script);
 
-    window.onYouglishAPIReady = () => setIsApiReady(true);
+    window.onYouglishAPIReady = () => {
+      setIsApiReady(true);
+    };
 
     return () => {
       if (script.parentNode) script.parentNode.removeChild(script);
@@ -40,53 +47,69 @@ export default function ShadowingView({ settings, onSuccessFlash }) {
     };
   }, []);
 
+  // Initialize Widget
   useEffect(() => {
-    if (isApiReady && !widget) {
-      const ygWidget = new YG.Widget("yg-shadow-widget", {
-        width: "100%",
-        components: 1, // Only video
-        events: {
-          'onCaptionChange': (event) => {
-            const clean = event.caption.replace(/\[\[\[|\]\]\]/g, "").trim();
-            const wordCount = clean.split(/\s+/).length;
-            if (wordCount <= 10 && wordCount > 0) {
-              setCurrentCaption(clean);
+    if (isApiReady && !widgetInstance.current) {
+      try {
+        const ygWidget = new YG.Widget("yg-shadow-widget", {
+          width: "100%",
+          components: 9, // Using 9 (Player + Captions) as it's most stable for data
+          events: {
+            'onCaptionChange': (event) => {
+              const clean = event.caption.replace(/\[\[\[|\]\]\]/g, "").trim();
+              const wordCount = clean.split(/\s+/).length;
+              // Filter for manageable segments (shadowing)
+              if (wordCount <= 10 && wordCount > 0) {
+                setCurrentCaption(clean);
+              }
+            },
+            'onCaptionConsumed': () => {
+              if (currentCaption) {
+                widgetInstance.current?.pause();
+                setIsInputMode(true);
+                setTimeout(() => inputRef.current?.focus(), 150);
+              }
+            },
+            'onFetchDone': (event) => {
+              setLoading(false);
+              setError(null);
+              if (event.totalResult === 0) {
+                setError("No videos found for this topic.");
+              }
+            },
+            'onError': (event) => {
+              setLoading(false);
+              console.error("YouGlish Error:", event);
+              setError("Video load error. Skipping...");
+              // Attempt to recover by picking another random video after a short delay
+              setTimeout(() => fetchRandom(), 2000);
             }
-          },
-          'onCaptionConsumed': () => {
-            if (currentCaption) {
-              widget?.pause();
-              setIsInputMode(true);
-              setTimeout(() => inputRef.current?.focus(), 150);
-            }
-          },
-          'onFetchDone': () => setLoading(false),
-          'onError': () => {
-            setLoading(false);
-            alert("Could not load video. Trying another...");
-            fetchRandom();
           }
-        }
-      });
-      setWidget(ygWidget);
+        });
+        widgetInstance.current = ygWidget;
+        setWidget(ygWidget);
+      } catch (err) {
+        console.error("Widget Init Error:", err);
+      }
     }
-  }, [isApiReady, widget, currentCaption]);
-
-  // Automatically start with a random video once ready
-  useEffect(() => {
-    if (widget && !loading && currentCaption === "") {
-      fetchRandom();
-    }
-  }, [widget]);
+  }, [isApiReady, currentCaption]);
 
   const handleSearch = (searchQuery) => {
     const target = searchQuery || query;
-    if (!widget || !target.trim()) return;
+    if (!widgetInstance.current || !target.trim()) return;
+
     setLoading(true);
+    setError(null);
     setFeedback(null);
     setIsInputMode(false);
     setUserInput("");
-    widget.fetch(target, "english", settings?.accent || "us");
+
+    // Ensure accent is valid or default to 'us'
+    const accent = VALID_ACCENTS.includes(settings?.accent?.toLowerCase()) 
+      ? settings.accent.toLowerCase() 
+      : "us";
+
+    widgetInstance.current.fetch(target, "english", accent);
   };
 
   const fetchRandom = () => {
@@ -96,6 +119,8 @@ export default function ShadowingView({ settings, onSuccessFlash }) {
   };
 
   const checkAnswer = () => {
+    if (!userInput.trim()) return;
+    
     const cleanUser = userInput.toLowerCase().replace(/[.,!?;:]/g, "").trim();
     const cleanCorrect = currentCaption.toLowerCase().replace(/[.,!?;:]/g, "").trim();
 
@@ -113,7 +138,7 @@ export default function ShadowingView({ settings, onSuccessFlash }) {
     setFeedback(null);
     setIsInputMode(false);
     setUserInput("");
-    widget?.next();
+    widgetInstance.current?.next();
   };
 
   const renderComparison = () => {
@@ -151,7 +176,7 @@ export default function ShadowingView({ settings, onSuccessFlash }) {
           {[0.5, 0.75, 1, 1.25].map(r => (
             <button 
               key={r}
-              onClick={() => { widget?.setSpeed(r); setSpeed(r); }}
+              onClick={() => { widgetInstance.current?.setSpeed(r); setSpeed(r); }}
               className={`px-3 py-1 rounded-lg text-[10px] font-black border transition-all ${speed === r ? 'bg-indigo-500 border-indigo-500 text-white' : 'bg-slate-800 border-slate-700 text-slate-400'}`}
             >
               {r}x
@@ -161,30 +186,49 @@ export default function ShadowingView({ settings, onSuccessFlash }) {
       </header>
 
       <div className="flex gap-3">
-        <input 
-          type="text" 
-          value={query} 
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-          placeholder="Search phrase..." 
-          className="flex-1 bg-slate-900 border-2 border-slate-800 p-4 rounded-2xl text-white outline-none focus:border-indigo-500"
-        />
-        <button onClick={() => handleSearch()} disabled={loading} className="bg-indigo-600 px-6 rounded-2xl font-bold text-white hover:bg-indigo-500 transition-all flex items-center gap-2">
-          {loading ? <Loader2 className="animate-spin" size={20} /> : <Search size={20} />}
+        <div className="flex-1 relative">
+          <input 
+            type="text" 
+            value={query} 
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+            placeholder="Type a word to shadow..." 
+            className="w-full bg-slate-900 border-2 border-slate-800 p-4 rounded-2xl text-white outline-none focus:border-indigo-500 pl-12"
+          />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+        </div>
+        <button 
+          onClick={() => handleSearch()} 
+          disabled={loading || !isApiReady} 
+          className="bg-indigo-600 px-6 rounded-2xl font-bold text-white hover:bg-indigo-500 transition-all flex items-center gap-2 disabled:opacity-50"
+        >
+          {loading ? <Loader2 className="animate-spin" size={20} /> : "Search"}
         </button>
-        <button onClick={fetchRandom} disabled={loading} className="bg-slate-800 border-2 border-slate-700 px-6 rounded-2xl font-bold text-white hover:bg-slate-700 transition-all flex items-center gap-2" title="Random Video">
-          <Dice5 size={20} />
+        <button 
+          onClick={fetchRandom} 
+          disabled={loading || !isApiReady} 
+          className="bg-slate-800 border-2 border-slate-700 px-6 rounded-2xl font-bold text-white hover:bg-slate-700 transition-all flex items-center gap-2" 
+          title="Random Video"
+        >
+          <Dice5 size={20} /> Random
         </button>
       </div>
 
+      {error && (
+        <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-2xl flex items-center gap-3 text-red-400 text-sm animate-in slide-in-from-top-2">
+          <AlertCircle size={18} />
+          <span>{error}</span>
+        </div>
+      )}
+
       <div className="bg-slate-950 rounded-3xl overflow-hidden border-2 border-slate-800 shadow-2xl relative aspect-video">
-        <div id="yg-shadow-widget"></div>
+        <div id="yg-shadow-widget" className="w-full h-full"></div>
         
         {isInputMode && (
           <div className="absolute inset-0 bg-slate-950/95 backdrop-blur-sm flex flex-col items-center justify-center p-8 text-center z-10">
             {!feedback ? (
               <div className="w-full max-w-2xl space-y-6">
-                <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Type what you heard</p>
+                <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Type what you just heard</p>
                 <textarea
                   ref={inputRef}
                   value={userInput}
@@ -194,8 +238,8 @@ export default function ShadowingView({ settings, onSuccessFlash }) {
                   rows={2}
                 />
                 <div className="flex gap-4">
-                  <button onClick={() => { widget?.replay(); setIsInputMode(false); }} className="flex-1 py-4 bg-slate-800 text-white rounded-2xl font-black flex items-center justify-center gap-2">
-                    <RotateCcw size={18}/> Replay
+                  <button onClick={() => { widgetInstance.current?.replay(); setIsInputMode(false); }} className="flex-1 py-4 bg-slate-800 text-white rounded-2xl font-black flex items-center justify-center gap-2">
+                    <RotateCcw size={18}/> Listen Again
                   </button>
                   <button onClick={checkAnswer} className="flex-1 py-4 bg-indigo-600 text-white rounded-2xl font-black">
                     Check
@@ -219,7 +263,7 @@ export default function ShadowingView({ settings, onSuccessFlash }) {
                   </div>
                 )}
                 <div className="flex gap-4 max-w-md mx-auto">
-                  <button onClick={() => { setFeedback(null); widget?.replay(); setIsInputMode(false); }} className="flex-1 py-4 bg-slate-800 text-white rounded-2xl font-bold">Retry</button>
+                  <button onClick={() => { setFeedback(null); widgetInstance.current?.replay(); setIsInputMode(false); }} className="flex-1 py-4 bg-slate-800 text-white rounded-2xl font-bold">Retry</button>
                   <button onClick={nextTrack} className="flex-1 py-4 bg-indigo-600 text-white rounded-2xl font-bold flex items-center justify-center gap-2">
                     Next <ChevronRight size={18}/>
                   </button>
