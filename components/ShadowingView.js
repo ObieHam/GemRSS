@@ -1,13 +1,20 @@
 import { useState, useEffect, useRef } from 'react';
-import { Volume2, Play, Pause, RotateCcw, ChevronRight, Search, Layout, CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { Volume2, Play, Pause, RotateCcw, ChevronRight, Search, Layout, CheckCircle, XCircle, Loader2, Dice5 } from 'lucide-react';
+
+// Common words/phrases that yield good natural English results
+const RANDOM_TOPICS = [
+  "daily routine", "travel stories", "cooking recipes", "tech news", 
+  "science facts", "history moments", "motivation", "standard english", 
+  "interview tips", "movie reviews", "book summary", "courage", "friendship"
+];
 
 export default function ShadowingView({ settings, onSuccessFlash }) {
   const [widget, setWidget] = useState(null);
   const [isApiReady, setIsApiReady] = useState(false);
-  const [query, setQuery] = useState("courage");
+  const [query, setQuery] = useState("");
   const [userInput, setUserInput] = useState("");
   const [currentCaption, setCurrentCaption] = useState("");
-  const [feedback, setFeedback] = useState(null); // 'correct' | 'incorrect'
+  const [feedback, setFeedback] = useState(null); 
   const [isInputMode, setIsInputMode] = useState(false);
   const [speed, setSpeed] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -17,11 +24,9 @@ export default function ShadowingView({ settings, onSuccessFlash }) {
   const inputRef = useRef(null);
 
   useEffect(() => {
-    // Load sounds from public folder
     successAudio.current = new Audio('/success.mp3');
     failureAudio.current = new Audio('/failure.mp3');
 
-    // Load YouGlish API script
     const script = document.createElement('script');
     script.src = "https://youglish.com/public/emb/widget.js";
     script.async = true;
@@ -39,14 +44,11 @@ export default function ShadowingView({ settings, onSuccessFlash }) {
     if (isApiReady && !widget) {
       const ygWidget = new YG.Widget("yg-shadow-widget", {
         width: "100%",
-        components: 1, // Only video component
+        components: 1, // Only video
         events: {
           'onCaptionChange': (event) => {
-            // Clean markers and trim
             const clean = event.caption.replace(/\[\[\[|\]\]\]/g, "").trim();
             const wordCount = clean.split(/\s+/).length;
-            
-            // Only capture segments with 10 words or fewer for practice
             if (wordCount <= 10 && wordCount > 0) {
               setCurrentCaption(clean);
             }
@@ -58,20 +60,39 @@ export default function ShadowingView({ settings, onSuccessFlash }) {
               setTimeout(() => inputRef.current?.focus(), 150);
             }
           },
-          'onFetchDone': () => setLoading(false)
+          'onFetchDone': () => setLoading(false),
+          'onError': () => {
+            setLoading(false);
+            alert("Could not load video. Trying another...");
+            fetchRandom();
+          }
         }
       });
       setWidget(ygWidget);
     }
   }, [isApiReady, widget, currentCaption]);
 
-  const handleSearch = () => {
-    if (!widget || !query.trim()) return;
+  // Automatically start with a random video once ready
+  useEffect(() => {
+    if (widget && !loading && currentCaption === "") {
+      fetchRandom();
+    }
+  }, [widget]);
+
+  const handleSearch = (searchQuery) => {
+    const target = searchQuery || query;
+    if (!widget || !target.trim()) return;
     setLoading(true);
     setFeedback(null);
     setIsInputMode(false);
     setUserInput("");
-    widget.fetch(query, "english", settings.accent || "us");
+    widget.fetch(target, "english", settings?.accent || "us");
+  };
+
+  const fetchRandom = () => {
+    const randomTopic = RANDOM_TOPICS[Math.floor(Math.random() * RANDOM_TOPICS.length)];
+    setQuery(randomTopic);
+    handleSearch(randomTopic);
   };
 
   const checkAnswer = () => {
@@ -124,7 +145,7 @@ export default function ShadowingView({ settings, onSuccessFlash }) {
     <div className="max-w-4xl mx-auto space-y-6 p-4 animate-in fade-in duration-500">
       <header className="flex items-center justify-between">
         <h2 className="text-3xl font-black text-white flex items-center gap-3">
-          <Layout className="text-indigo-400" /> Shadowing View
+          <Layout className="text-indigo-400" /> Shadowing Practice
         </h2>
         <div className="flex gap-2">
           {[0.5, 0.75, 1, 1.25].map(r => (
@@ -145,11 +166,14 @@ export default function ShadowingView({ settings, onSuccessFlash }) {
           value={query} 
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-          placeholder="Search for a word or phrase to shadow..." 
+          placeholder="Search phrase..." 
           className="flex-1 bg-slate-900 border-2 border-slate-800 p-4 rounded-2xl text-white outline-none focus:border-indigo-500"
         />
-        <button onClick={handleSearch} disabled={loading} className="bg-indigo-600 px-8 rounded-2xl font-bold text-white hover:bg-indigo-500 transition-all flex items-center gap-2">
-          {loading ? <Loader2 className="animate-spin" size={20} /> : <Search size={20} />} Start
+        <button onClick={() => handleSearch()} disabled={loading} className="bg-indigo-600 px-6 rounded-2xl font-bold text-white hover:bg-indigo-500 transition-all flex items-center gap-2">
+          {loading ? <Loader2 className="animate-spin" size={20} /> : <Search size={20} />}
+        </button>
+        <button onClick={fetchRandom} disabled={loading} className="bg-slate-800 border-2 border-slate-700 px-6 rounded-2xl font-bold text-white hover:bg-slate-700 transition-all flex items-center gap-2" title="Random Video">
+          <Dice5 size={20} />
         </button>
       </div>
 
@@ -160,7 +184,7 @@ export default function ShadowingView({ settings, onSuccessFlash }) {
           <div className="absolute inset-0 bg-slate-950/95 backdrop-blur-sm flex flex-col items-center justify-center p-8 text-center z-10">
             {!feedback ? (
               <div className="w-full max-w-2xl space-y-6">
-                <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Type what you just heard</p>
+                <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Type what you heard</p>
                 <textarea
                   ref={inputRef}
                   value={userInput}
@@ -174,7 +198,7 @@ export default function ShadowingView({ settings, onSuccessFlash }) {
                     <RotateCcw size={18}/> Replay
                   </button>
                   <button onClick={checkAnswer} className="flex-1 py-4 bg-indigo-600 text-white rounded-2xl font-black">
-                    Check Answer
+                    Check
                   </button>
                 </div>
               </div>
@@ -195,7 +219,7 @@ export default function ShadowingView({ settings, onSuccessFlash }) {
                   </div>
                 )}
                 <div className="flex gap-4 max-w-md mx-auto">
-                  <button onClick={() => { setFeedback(null); widget?.replay(); setIsInputMode(false); }} className="flex-1 py-4 bg-slate-800 text-white rounded-2xl font-bold">Try Again</button>
+                  <button onClick={() => { setFeedback(null); widget?.replay(); setIsInputMode(false); }} className="flex-1 py-4 bg-slate-800 text-white rounded-2xl font-bold">Retry</button>
                   <button onClick={nextTrack} className="flex-1 py-4 bg-indigo-600 text-white rounded-2xl font-bold flex items-center justify-center gap-2">
                     Next <ChevronRight size={18}/>
                   </button>
