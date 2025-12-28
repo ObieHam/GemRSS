@@ -1,34 +1,33 @@
 import { useState, useEffect, useRef } from 'react';
-import { Volume2, Play, Pause, RotateCcw, ChevronRight, Layout, CheckCircle, XCircle, Loader2, Dice5, SkipForward } from 'lucide-react';
+import { Layout, Play, RotateCcw, ChevronRight, Dice5, CheckCircle, XCircle, Loader2, AlertCircle } from 'lucide-react';
 
-// Curated library of shadowing content with transcripts
-// You can expand this list with more video IDs and their transcripts
+// Curated library using high-quality educational channels (BBC/TED) 
+// These IDs are generally more stable and allow embedding on localhost.
 const SHADOWING_LIBRARY = [
   {
-    id: '7v4S-6vR3YI',
-    title: 'The Art of Purpose',
+    id: '_Z0ZQTmCQvA', // BBC Learning English
+    title: 'Daily English: At the Office',
     segments: [
-      { start: 12, end: 18, text: "Success is not the key to happiness." },
-      { start: 19, end: 25, text: "Happiness is the key to success." },
-      { start: 26, end: 32, text: "If you love what you are doing, you will be successful." }
+      { start: 5, end: 11, text: "I'm sorry I'm late, the traffic was terrible." },
+      { start: 12, end: 18, text: "Don't worry about it, we're just getting started." },
+      { start: 20, end: 27, text: "Could you please send me that report by the end of the day?" }
     ]
   },
   {
-    id: 'GfR97_P-zL0',
-    title: 'Daily Habits',
+    id: 'GfR97_P-zL0', // Productivity/Habits
+    title: 'Success and Daily Routine',
     segments: [
-      { start: 45, end: 52, text: "The secret of your future is hidden in your daily routine." },
-      { start: 55, end: 63, text: "Small improvements every day lead to exceptional results." },
-      { start: 70, end: 78, text: "Consistency is more important than intensity." }
+      { start: 45, end: 51, text: "The secret of your future is hidden in your daily routine." },
+      { start: 54, end: 62, text: "Small improvements every day lead to exceptional results." },
+      { start: 70, end: 77, text: "Consistency is more important than intensity." }
     ]
   },
   {
-    id: 'w77zPAtVTuI',
-    title: 'Tech and Innovation',
+    id: 'qPYzyfMTv7Y', // VOA Learning English
+    title: 'Technology Trends',
     segments: [
-      { start: 10, end: 18, text: "The best way to predict the future is to create it." },
-      { start: 20, end: 28, text: "Innovation distinguishes between a leader and a follower." },
-      { start: 35, end: 43, text: "Stay hungry, stay foolish." }
+      { start: 15, end: 22, text: "Artificial intelligence is changing how we live and work." },
+      { start: 25, end: 32, text: "The best way to predict the future is to create it." }
     ]
   }
 ];
@@ -40,83 +39,92 @@ export default function ShadowingView({ settings, onSuccessFlash }) {
   const [userInput, setUserInput] = useState("");
   const [feedback, setFeedback] = useState(null); // 'correct' | 'incorrect'
   const [isInputMode, setIsInputMode] = useState(false);
-  const [speed, setSpeed] = useState(1);
   const [isApiReady, setIsApiReady] = useState(false);
+  const [speed, setSpeed] = useState(1);
+  const [error, setError] = useState(null);
 
   const successAudio = useRef(null);
   const failureAudio = useRef(null);
   const inputRef = useRef(null);
-  const checkInterval = useRef(null);
+  const monitorRef = useRef(null);
+  const playerRef = useRef(null);
 
   useEffect(() => {
     successAudio.current = new Audio('/success.mp3');
     failureAudio.current = new Audio('/failure.mp3');
 
-    // Load YouTube IFrame API
+    // Load YouTube IFrame API with explicit HTTPS
     if (!window.YT) {
       const tag = document.createElement('script');
       tag.src = "https://www.youtube.com/iframe_api";
       const firstScriptTag = document.getElementsByTagName('script')[0];
       firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
-
       window.onYouTubeIframeAPIReady = () => setIsApiReady(true);
     } else {
       setIsApiReady(true);
     }
 
-    return () => clearInterval(checkInterval.current);
+    return () => clearInterval(monitorRef.current);
   }, []);
 
   useEffect(() => {
-    if (isApiReady && !player) {
-      const newPlayer = new window.YT.Player('yt-player', {
+    if (isApiReady && !playerRef.current) {
+      const newPlayer = new window.YT.Player('yt-shadow-player', {
         height: '100%',
         width: '100%',
         videoId: currentVideo.id,
-        playerVars: {
-          controls: 0, // Hide YouTube controls for a cleaner shadowing look
+        playerVars: { 
+          controls: 0, 
+          modestbranding: 1, 
+          rel: 0, 
           disablekb: 1,
-          rel: 0,
-          modestbranding: 1
+          origin: typeof window !== 'undefined' ? window.location.origin : '', // Critical for fixing "Unavailable"
+          enablejsapi: 1
         },
         events: {
-          'onReady': (event) => setPlayer(event.target),
+          'onReady': (event) => {
+            playerRef.current = event.target;
+            setPlayer(event.target);
+          },
           'onStateChange': (event) => {
             if (event.data === window.YT.PlayerState.PLAYING) {
-              startSegmentMonitor();
+              startMonitoring();
             } else {
-              clearInterval(checkInterval.current);
+              clearInterval(monitorRef.current);
             }
+          },
+          'onError': (event) => {
+            console.error("YouTube Player Error:", event.data);
+            setError("This video is restricted. Skipping to another...");
+            setTimeout(pickRandomVideo, 2000);
           }
         }
       });
     }
-  }, [isApiReady, player, currentVideo]);
+  }, [isApiReady]);
 
-  const startSegmentMonitor = () => {
-    clearInterval(checkInterval.current);
+  const startMonitoring = () => {
+    clearInterval(monitorRef.current);
     const segment = currentVideo.segments[currentSegIdx];
-    
-    checkInterval.current = setInterval(() => {
-      if (!player) return;
-      const currentTime = player.getCurrentTime();
-      if (currentTime >= segment.end) {
-        player.pauseVideo();
+    monitorRef.current = setInterval(() => {
+      if (playerRef.current && playerRef.current.getCurrentTime() >= segment.end) {
+        playerRef.current.pauseVideo();
         setIsInputMode(true);
-        clearInterval(checkInterval.current);
-        setTimeout(() => inputRef.current?.focus(), 100);
+        clearInterval(monitorRef.current);
+        setTimeout(() => inputRef.current?.focus(), 150);
       }
     }, 100);
   };
 
-  const playCurrentSegment = () => {
-    if (!player) return;
+  const playSegment = () => {
+    if (!playerRef.current) return;
     const segment = currentVideo.segments[currentSegIdx];
     setFeedback(null);
     setIsInputMode(false);
     setUserInput("");
-    player.seekTo(segment.start);
-    player.playVideo();
+    setError(null);
+    playerRef.current.seekTo(segment.start);
+    playerRef.current.playVideo();
   };
 
   const pickRandomVideo = () => {
@@ -127,12 +135,14 @@ export default function ShadowingView({ settings, onSuccessFlash }) {
     setFeedback(null);
     setIsInputMode(false);
     setUserInput("");
-    if (player) {
-      player.loadVideoById(random.id);
+    setError(null);
+    if (playerRef.current) {
+      playerRef.current.loadVideoById(random.id);
     }
   };
 
   const checkAnswer = () => {
+    if (!userInput.trim()) return;
     const cleanUser = userInput.toLowerCase().replace(/[.,!?;:]/g, "").trim();
     const cleanCorrect = currentVideo.segments[currentSegIdx].text.toLowerCase().replace(/[.,!?;:]/g, "").trim();
 
@@ -150,17 +160,15 @@ export default function ShadowingView({ settings, onSuccessFlash }) {
     setFeedback(null);
     setIsInputMode(false);
     setUserInput("");
-    
     if (currentSegIdx + 1 < currentVideo.segments.length) {
       setCurrentSegIdx(prev => prev + 1);
     } else {
-      pickRandomVideo(); // If finished segments, pick new video
+      pickRandomVideo();
     }
   };
 
   const renderComparison = () => {
-    const correctText = currentVideo.segments[currentSegIdx].text;
-    const correctWords = correctText.split(/\s+/);
+    const correctWords = currentVideo.segments[currentSegIdx].text.split(/\s+/);
     const userWords = userInput.split(/\s+/);
     const max = Math.max(correctWords.length, userWords.length);
 
@@ -187,17 +195,14 @@ export default function ShadowingView({ settings, onSuccessFlash }) {
   return (
     <div className="max-w-4xl mx-auto space-y-6 p-4 animate-in fade-in duration-500">
       <header className="flex items-center justify-between">
-        <div className="space-y-1">
-          <h2 className="text-3xl font-black text-white flex items-center gap-3">
-            <Layout className="text-indigo-400" /> Shadowing View
-          </h2>
-          <p className="text-slate-500 text-xs font-bold uppercase tracking-widest">Currently Playing: {currentVideo.title}</p>
-        </div>
+        <h2 className="text-3xl font-black text-white flex items-center gap-3">
+          <Layout className="text-indigo-400" /> Shadowing View
+        </h2>
         <div className="flex gap-2">
-          {[0.5, 0.75, 1, 1.25].map(r => (
+          {[0.5, 0.75, 1].map(r => (
             <button 
               key={r}
-              onClick={() => { player?.setPlaybackRate(r); setSpeed(r); }}
+              onClick={() => { playerRef.current?.setPlaybackRate(r); setSpeed(r); }}
               className={`px-3 py-1 rounded-lg text-[10px] font-black border transition-all ${speed === r ? 'bg-indigo-500 border-indigo-500 text-white' : 'bg-slate-800 border-slate-700 text-slate-400'}`}
             >
               {r}x
@@ -208,27 +213,41 @@ export default function ShadowingView({ settings, onSuccessFlash }) {
 
       <div className="flex gap-3">
         <button 
-          onClick={playCurrentSegment} 
+          onClick={playSegment} 
+          disabled={!isApiReady}
           className="flex-1 bg-indigo-600 py-4 rounded-2xl font-black text-white hover:bg-indigo-500 transition-all flex items-center justify-center gap-2"
         >
-          <Play size={20} fill="currentColor" /> Start Practice
+          <Play size={20} fill="currentColor" /> Listen to Segment
         </button>
         <button 
           onClick={pickRandomVideo} 
           className="bg-slate-800 border-2 border-slate-700 px-8 rounded-2xl font-bold text-white hover:bg-slate-700 transition-all flex items-center gap-2"
         >
-          <Dice5 size={20} /> Random Video
+          <Dice5 size={20} /> Next Video
         </button>
       </div>
 
-      <div className="bg-slate-950 rounded-3xl overflow-hidden border-2 border-slate-800 shadow-2xl relative aspect-video group">
-        <div id="yt-player" className="pointer-events-none"></div>
+      {error && (
+        <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-2xl flex items-center gap-3 text-red-400 text-sm">
+          <AlertCircle size={18} />
+          <span>{error}</span>
+        </div>
+      )}
+
+      <div className="bg-slate-950 rounded-3xl overflow-hidden border-2 border-slate-800 shadow-2xl relative aspect-video min-h-[300px]">
+        <div id="yt-shadow-player" className="pointer-events-none w-full h-full"></div>
         
+        {!isInputMode && !feedback && !error && (
+          <div className="absolute inset-0 flex items-center justify-center bg-slate-950/40">
+             {!player && <Loader2 className="animate-spin text-indigo-500" size={48} />}
+          </div>
+        )}
+
         {isInputMode && (
-          <div className="absolute inset-0 bg-slate-950/95 backdrop-blur-sm flex flex-col items-center justify-center p-8 text-center z-10">
+          <div className="absolute inset-0 bg-slate-950/95 backdrop-blur-sm flex flex-col items-center justify-center p-8 z-10">
             {!feedback ? (
               <div className="w-full max-w-2xl space-y-6">
-                <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Type what you just heard</p>
+                <p className="text-slate-400 font-bold uppercase tracking-widest text-xs text-center">Type exactly what you heard</p>
                 <textarea
                   ref={inputRef}
                   value={userInput}
@@ -239,34 +258,29 @@ export default function ShadowingView({ settings, onSuccessFlash }) {
                   placeholder="..."
                 />
                 <div className="flex gap-4">
-                  <button onClick={playCurrentSegment} className="flex-1 py-4 bg-slate-800 text-white rounded-2xl font-black flex items-center justify-center gap-2">
+                  <button onClick={playSegment} className="flex-1 py-4 bg-slate-800 text-white rounded-2xl font-black flex items-center justify-center gap-2">
                     <RotateCcw size={18}/> Listen Again
                   </button>
-                  <button onClick={checkAnswer} className="flex-1 py-4 bg-indigo-600 text-white rounded-2xl font-black">
-                    Check
-                  </button>
+                  <button onClick={checkAnswer} className="flex-1 py-4 bg-indigo-600 text-white rounded-2xl font-black">Check</button>
                 </div>
               </div>
             ) : (
-              <div className="space-y-8 w-full max-w-3xl">
+              <div className="text-center space-y-8 animate-in zoom-in-95 w-full max-w-2xl">
                 {feedback === 'correct' ? (
-                  <div className="flex flex-col items-center animate-bounce">
-                    <CheckCircle size={64} className="text-emerald-500 mb-4" />
-                    <h3 className="text-4xl font-black text-white">Well Done!</h3>
-                  </div>
+                  <CheckCircle size={80} className="text-emerald-500 mx-auto" />
                 ) : (
                   <div>
-                    <XCircle size={64} className="text-red-500 mx-auto mb-4" />
-                    <h3 className="text-2xl font-black text-white mb-6">Comparison</h3>
+                    <XCircle size={80} className="text-red-500 mx-auto mb-4" />
                     <div className="bg-slate-900/50 p-6 rounded-2xl border border-white/5">
                       {renderComparison()}
                     </div>
                   </div>
                 )}
-                <div className="flex gap-4 max-w-md mx-auto">
-                  <button onClick={playCurrentSegment} className="flex-1 py-4 bg-slate-800 text-white rounded-2xl font-bold">Retry</button>
-                  <button onClick={nextSegment} className="flex-1 py-4 bg-indigo-600 text-white rounded-2xl font-bold flex items-center justify-center gap-2">
-                    {currentSegIdx + 1 < currentVideo.segments.length ? 'Next Segment' : 'Next Video'} <ChevronRight size={18}/>
+                <h3 className="text-4xl font-black text-white">{feedback === 'correct' ? 'Well Done!' : 'Not Quite'}</h3>
+                <div className="flex gap-4 justify-center">
+                  <button onClick={playSegment} className="px-8 py-4 bg-slate-800 text-white rounded-2xl font-bold">Retry</button>
+                  <button onClick={nextSegment} className="px-8 py-4 bg-indigo-600 text-white rounded-2xl font-bold flex items-center gap-2">
+                    Next {currentSegIdx + 1 < currentVideo.segments.length ? 'Segment' : 'Video'} <ChevronRight size={18}/>
                   </button>
                 </div>
               </div>
